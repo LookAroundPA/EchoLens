@@ -2,13 +2,13 @@
 
 > See beyond the sound.
 >
-> 从声音中发现思想。
+> 穿透声音，洞察思想。
 
 EchoLens 是一个 AI 驱动的语音内容理解与知识沉淀系统。
 
 它将视频、播客、访谈、课程等音频内容转换为可搜索、可分析、可持续积累的知识资产。
 
-## Vision
+## 项目愿景
 
 互联网每天产生大量有价值的声音内容，但这些内容通常：
 
@@ -19,101 +19,103 @@ EchoLens 是一个 AI 驱动的语音内容理解与知识沉淀系统。
 
 EchoLens 希望构建一个从 **声音采集 → 内容理解 → 知识沉淀 → 智能洞察** 的 AI 内容基础设施。
 
-## Core Pipeline
+## 核心流程
 
 ```text
-Content Sources
-      |
-      v
-Audio Extraction
-      |
-      v
-Speech Recognition
-      |
-      v
-Text Understanding
-      |
-      v
-Knowledge Storage
-      |
-      v
-AI Insights
+内容来源
+    |
+    v
+音频提取
+    |
+    v
+语音识别
+    |
+    v
+文本理解
+    |
+    v
+知识存储
+    |
+    v
+AI 洞察
 ```
 
-## Features
+## 核心能力
 
-### Audio Intelligence
+### 音频处理
 
-- Extract audio from video sources
-- Normalize audio formats
-- Batch processing support
+- 从视频源提取音频
+- 音频格式标准化
+- 批量处理支持
 
-### Speech Recognition
+### 语音识别
 
-- Automatic transcription
-- Multi-language support
-- Timestamp generation
-- Subtitle generation
+- 自动语音转文字
+- 多语言支持
+- 时间戳生成
+- 字幕生成
 
-### AI Understanding
+### AI 内容理解
 
-- Summarization
-- Topic classification
-- Key insight extraction
-- Semantic search
+- 内容摘要
+- 主题分类
+- 关键观点提取
+- 语义搜索
 
-### Knowledge System
+### 知识系统
 
-Transform scattered conversations into a personal knowledge base.
+将分散的声音内容沉淀为个人知识库。
 
-Example questions:
+你可以询问：
 
-- What topics does this creator focus on?
-- How have their opinions changed over time?
-- What are the common ideas across hundreds of videos?
+- 某个创作者长期关注哪些主题？
+- 他的观点随着时间如何变化？
+- 大量视频中有哪些共同观点？
 
-## Planned Tech Stack
+## 技术路线
 
-| Component | Technology |
+| 模块 | 技术 |
 | --- | --- |
-| Audio Processing | FFmpeg |
-| Speech Recognition | Whisper / Faster-Whisper |
-| LLM Analysis | Large Language Models |
-| Vector Search | FAISS / Chroma / Milvus |
-| Backend | Python |
+| 音频处理 | FFmpeg |
+| 语音识别 | Whisper / Faster-Whisper |
+| AI 分析 | Large Language Models |
+| 向量检索 | FAISS / Chroma / Milvus |
+| 后端 | Python |
 
-## Roadmap
+## 开发路线
 
-### Phase 1 - Audio Foundation
+### 第一阶段：音频基础能力
 
-- [ ] Audio extraction pipeline
-- [ ] Speech-to-text pipeline
-- [ ] Transcript storage
+- [ ] 视频/音频输入处理
+- [ ] 音频提取流程
+- [ ] 语音转文字流程
+- [ ] 文本存储
 
-### Phase 2 - Content Intelligence
+### 第二阶段：内容理解能力
 
-- [ ] AI summaries
-- [ ] Topic tagging
-- [ ] Key opinion extraction
+- [ ] AI 摘要
+- [ ] 主题标签
+- [ ] 关键观点提取
 
-### Phase 3 - Knowledge Layer
+### 第三阶段：知识系统
 
-- [ ] Vector database integration
-- [ ] Semantic search
-- [ ] AI Q&A
+- [ ] 向量数据库接入
+- [ ] 语义搜索
+- [ ] AI 问答
 
-### Phase 4 - Automation
+### 第四阶段：智能自动化
 
-- [ ] Scheduled content collection
-- [ ] Automatic analysis reports
-- [ ] Personal intelligence dashboard
+- [ ] 自动内容采集
+- [ ] 定时分析任务
+- [ ] 趋势发现
+- [ ] 智能报告生成
 
-## Contributing
+## 参与贡献
 
-Issues and pull requests are welcome.
+欢迎提交 Issue 和 Pull Request。
 
-Together we explore how human knowledge hidden in audio can become accessible, searchable, and reusable.
+EchoLens 希望探索如何让隐藏在声音中的人类知识，更容易被发现、理解和复用。
 
-## License
+## 开源协议
 
-TBD
+待定
