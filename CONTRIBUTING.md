@@ -1,24 +1,24 @@
-# Contributing to EchoLens
+# 参与贡献 EchoLens
 
-Thanks for your interest in EchoLens.
+感谢你关注 EchoLens。
 
-## Development Ideas
+## 欢迎贡献的方向
 
-Areas where contributions are welcome:
+我们欢迎以下方向的贡献：
 
-- Audio processing pipelines
-- Speech recognition improvements
-- LLM-based analysis workflows
-- Knowledge retrieval systems
-- Documentation improvements
+- 音频处理流程
+- 语音识别优化
+- LLM 内容分析工作流
+- 知识检索系统
+- 文档完善
 
-## Contribution Flow
+## 贡献流程
 
-1. Create an issue describing the idea or problem.
-2. Fork the repository.
-3. Create a feature branch.
-4. Submit a pull request.
+1. 创建 Issue，描述想法或问题。
+2. Fork 项目仓库。
+3. 创建功能分支。
+4. 提交 Pull Request。
 
-## Philosophy
+## 项目理念
 
-EchoLens aims to make valuable human knowledge hidden in audio content easier to discover, understand, and reuse.
+EchoLens 希望让隐藏在音频内容中的人类知识，更容易被发现、理解和复用。
