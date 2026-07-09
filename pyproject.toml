@@ -1,0 +1,10 @@
+[project]
+name = "echolens"
+version = "0.1.0"
+description = "AI-powered voice content understanding system"
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
