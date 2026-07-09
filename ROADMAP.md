@@ -1,37 +1,37 @@
-# EchoLens Roadmap
+# EchoLens 开发路线图
 
-## Phase 1 - Audio Foundation
+## 第一阶段：音频基础能力
 
-Goal: Build the basic content ingestion pipeline.
+目标：建立基础内容采集与处理流程。
 
-- Video/audio input handling
-- Audio extraction with FFmpeg
-- Speech recognition integration
-- Transcript persistence
+- 视频/音频输入处理
+- 使用 FFmpeg 提取音频
+- 接入语音识别能力
+- 保存转录文本
 
-## Phase 2 - Content Intelligence
+## 第二阶段：内容理解能力
 
-Goal: Understand the meaning behind audio content.
+目标：理解声音背后的信息和观点。
 
-- AI summaries
-- Topic extraction
-- Keyword analysis
-- Important opinion detection
+- AI 内容摘要
+- 主题提取
+- 关键词分析
+- 重要观点识别
 
-## Phase 3 - Knowledge System
+## 第三阶段：知识系统
 
-Goal: Turn transcripts into a searchable knowledge base.
+目标：将文本内容转化为可检索知识库。
 
-- Embedding generation
-- Vector database integration
-- Semantic search
-- AI question answering
+- Embedding 生成
+- 向量数据库接入
+- 语义搜索
+- AI 问答
 
-## Phase 4 - Autonomous Intelligence
+## 第四阶段：智能助手
 
-Goal: Create a personal content intelligence assistant.
+目标：构建个人内容智能助手。
 
-- Automatic creator tracking
-- Scheduled analysis
-- Trend discovery
-- Insight reports
+- 自动追踪创作者内容
+- 定时分析任务
+- 趋势发现
+- 洞察报告生成
