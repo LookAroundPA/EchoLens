@@ -11,7 +11,11 @@ EchoLens 是一个 AI 驱动的语音内容理解与知识沉淀系统。
 整体流程：
 
 ```text
-内容采集
+本地视频目录
+    ↓
+目录扫描
+    ↓
+任务队列
     ↓
 音频处理
     ↓
@@ -41,7 +45,9 @@ AI 检索与分析
 
 | 模块 | 技术 |
 | --- | --- |
-| 内容采集 | yt-dlp / 自定义 Collector |
+| 本地目录扫描 | Python pathlib / os.stat |
+| 去重与状态持久化 | MySQL |
+| 任务队列与锁 | Redis |
 | 音频处理 | FFmpeg |
 | 语音识别 | Whisper / Faster-Whisper |
 | AI 分析 | LLM |
@@ -52,20 +58,33 @@ AI 检索与分析
 
 ## 模块设计
 
-### Collector
+### Scanner / Collector
 
-负责获取原始内容。
+负责从本地视频目录发现原始内容。
 
 输入：
 
-- 视频 URL
-- 本地视频文件
-- 音频文件
+- 固定根目录
+- 博主子目录
+- 视频文件
 
 输出：
 
-- 原始媒体文件
-- 元数据
+- 标准视频元数据
+- MySQL 视频记录
+- Redis 待处理任务
+
+---
+
+### Storage
+
+负责数据持久化。
+
+MVP 阶段：
+
+- MySQL：视频记录、处理状态、转录文本、AI 分析结果
+- Redis：任务队列、任务锁、临时状态、重试计数
+- Local File Storage：视频、音频、中间文件
 
 ---
 
@@ -113,35 +132,28 @@ AI 检索与分析
 - 关键词提取
 - 观点分析
 
----
-
-### Storage
-
-负责数据持久化。
-
-存储：
-
-- 原始文件
-- 文本数据
-- Embedding
-- 向量索引
-
 ## MVP 实现目标
 
 第一版只完成：
 
 ```text
-视频文件
+本地视频目录
+    ↓
+Scanner
+    ↓
+MySQL 去重
+    ↓
+Redis Queue
     ↓
 FFmpeg
-    ↓
-音频文件
     ↓
 Faster-Whisper
     ↓
 文本 JSON
     ↓
 LLM 摘要
+    ↓
+MySQL 保存结果
 ```
 
 先建立完整 Pipeline，再逐步扩展能力。
