@@ -40,16 +40,20 @@ MVP 不做“上传视频分析工具”。
 
 真实目标：
 
-> 用户指定抖音创作者，EchoLens 自动获取其公开作品，并持续完成语音分析和知识沉淀。
+> 用户指定抖音创作者，外部采集服务将视频落盘到本地目录，EchoLens 自动扫描、转写、分析并沉淀知识。
 
 核心闭环：
 
 ```text
-指定创作者
+外部采集服务
     ↓
-自动同步作品
+本地视频目录
     ↓
-获取媒体资源
+EchoLens 扫描
+    ↓
+MySQL 去重 / 状态记录
+    ↓
+Redis 任务队列
     ↓
 提取原声
     ↓
@@ -92,59 +96,60 @@ EchoLens 自动生成：
 # 5. 系统架构
 
 ```text
-                 Creator
-                    |
-                    ↓
-          Collector Adapter
-                    |
-                    ↓
-          Media Metadata
-                    |
-                    ↓
+          External Douyin Collector
+                     |
+                     ↓
+          Local Source Directory
+                     |
+                     ↓
+              Scanner Layer
+                     |
+                     ↓
+              MySQL Storage
+                     |
+                     ↓
+               Redis Queue
+                     |
+                     ↓
               Media Pipeline
-                    |
-                    ↓
+                     |
+                     ↓
           Speech Recognition
-                    |
-                    ↓
-             AI Analysis
-                    |
-                    ↓
+                     |
+                     ↓
+              AI Analysis
+                     |
+                     ↓
           Knowledge Storage
-                    |
-                    ↓
-             Query System
+                     |
+                     ↓
+              Query System
 ```
 
 ---
 
 # 6. 核心模块
 
-## 6.1 Collector（采集层）
+## 6.1 Scanner / Collector（本地扫描层）
 
 职责：
 
-负责获取创作者内容。
+负责从本地视频目录发现新内容。
 
 能力：
 
-- 添加创作者
-- 同步作品列表
-- 获取视频信息
+- 扫描博主子目录
+- 识别视频文件
+- 解析 video_id
 - 判断新增内容
+- 写入 MySQL
+- 推送 Redis 任务
 
 设计原则：
 
-Collector 必须独立，可替换。
+Scanner 只读取本地文件，不直接调用抖音平台。
 
-参考方向：
-
-- Douyin_TikTok_Download_API
-- 自定义平台 Adapter
-
-原因：
-
-平台接口、Cookie、风控策略可能变化，不能让核心 AI Pipeline 依赖单一采集实现。
+外部采集服务由用户单独维护。
 
 ---
 
@@ -213,14 +218,14 @@ MVP 输出：
 
 ## 6.5 Knowledge Storage（知识存储）
 
-初期：
+MVP 阶段使用：
 
-- SQLite
-- 文件存储
+- MySQL：持久化视频、任务状态、转录文本、AI 分析结果
+- Redis：任务队列、锁、临时状态、重试计数
+- Local File Storage：原始视频、音频、中间文件
 
-后续：
+后续阶段增加：
 
-- PostgreSQL
 - Vector Database
 
 ---
@@ -237,24 +242,27 @@ MVP 输出：
 
 ---
 
-## Phase 1：自动采集 MVP
+## Phase 1：本地目录扫描 MVP
 
 目标：
 
-打通创作者到内容的自动化流程。
+打通本地视频目录到处理队列的自动化流程。
 
 功能：
 
-- 添加创作者
-- 同步作品
-- 去重
-- 获取媒体资源
+- 扫描固定根目录
+- 按博主子目录识别来源
+- 根据 video_id 去重
+- 使用 mtime 加速扫描
+- 使用 MySQL 记录状态
+- 使用 Redis 推送处理任务
 
 风险：
 
-- 平台变化
-- Cookie 管理
-- 风控限制
+- 文件下载中被提前扫描
+- 文件名格式变化
+- 重复文件
+- 视频 ID 解析失败
 
 ---
 
@@ -300,7 +308,8 @@ Python
 
 采集：
 
-- Douyin Collector Adapter
+- 外部 Douyin 采集服务
+- 本地目录 Scanner
 - Douyin_TikTok_Download_API（参考）
 
 语音：
@@ -314,9 +323,10 @@ AI：
 
 存储：
 
-- SQLite
-- PostgreSQL
-- Vector Database
+- MySQL
+- Redis
+- Local File Storage
+- Vector Database（后续）
 
 ---
 
@@ -329,6 +339,7 @@ AI：
 - 社交运营
 - 推荐算法
 - 多平台支持
+- 抖音采集服务部署管理
 
 EchoLens 的核心价值：
 
@@ -340,12 +351,14 @@ EchoLens 的核心价值：
 
 用户完成：
 
-1. 添加一个抖音创作者
-2. 系统自动发现新作品
-3. 自动获取可访问媒体内容
-4. 自动生成转录文本
-5. 自动生成摘要和标签
-6. 可以查询该创作者历史内容
+1. 外部采集服务将视频保存到固定目录
+2. EchoLens 扫描本地视频目录
+3. 系统识别新增视频
+4. 使用 MySQL 完成去重和状态记录
+5. 使用 Redis 分发处理任务
+6. 自动生成转录文本
+7. 自动生成摘要和标签
+8. 可以查询该创作者历史内容
 
 ---
 
@@ -353,16 +366,25 @@ EchoLens 的核心价值：
 
 ## 数据采集风险
 
-采集依赖公开内容和技术适配，可能受到：
+采集由外部服务负责，EchoLens 不保证抖音平台采集稳定性。
 
-- 平台策略调整
-- Cookie 变化
-- 接口变化
-- 访问限制
+EchoLens 只处理已经落盘的视频文件。
 
-影响。
+## 文件扫描风险
 
-因此 Collector 必须保持独立。
+本地文件可能存在：
+
+- 下载未完成
+- 文件重复
+- 文件名格式变化
+- 文件时间异常
+
+因此扫描层必须使用：
+
+- mtime 快速过滤
+- video_id 去重
+- 文件稳定性检查
+- MySQL 状态记录
 
 ## 产品边界
 
