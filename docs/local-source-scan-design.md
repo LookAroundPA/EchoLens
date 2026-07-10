@@ -18,11 +18,24 @@ D:\BaiduNetdiskDownload\dy src
 D:\BaiduNetdiskDownload\dy src\
 ├── 博主A\
 │   ├── douyin.wtf_douyin_738xxxx.mp4
-│   └── douyin.wtf_douyin_739xxxx.mp4
+│   └── douyin.wtf_douyin_738xxxx.mp4.json
 │
 └── 博主B\
     ├── douyin.wtf_douyin_740xxxx.mp4
-    └── douyin.wtf_douyin_741xxxx.mp4
+    └── douyin.wtf_douyin_740xxxx.mp4.json
+```
+
+每个视频文件旁边必须有一个同名元数据文件：
+
+```text
+<video_file>.json
+```
+
+示例：
+
+```text
+douyin.wtf_douyin_738xxxx.mp4
+douyin.wtf_douyin_738xxxx.mp4.json
 ```
 
 ---
@@ -32,8 +45,8 @@ D:\BaiduNetdiskDownload\dy src\
 扫描模块负责：
 
 - 发现本地新增视频
-- 识别创作者目录
-- 从文件名解析 video_id
+- 读取同名 `.mp4.json` 元数据文件
+- 识别创作者与视频唯一 ID
 - 避免重复处理
 - 避免处理下载中的文件
 - 将任务写入 Redis 队列
@@ -41,45 +54,101 @@ D:\BaiduNetdiskDownload\dy src\
 
 ---
 
-# 3. 去重策略
+# 3. 元数据文件协议
 
-## 3.1 不使用文件名作为唯一依据
-
-文件名可能变化，因此不能仅靠文件名去重。
-
-## 3.2 优先使用 video_id
-
-如果文件名包含稳定视频 ID，则以 video_id 作为主去重依据。
+每个视频对应一个同名 JSON 元数据文件。
 
 示例：
 
-```text
-douyin.wtf_douyin_738xxxx.mp4
+```json
+{
+  "video_id": "738xxxx",
+  "author_id": "author_xxx",
+  "platform": "douyin",
+  "type": "video",
+  "desc": "视频描述",
+  "create_time": 1234567890,
+  "with_watermark": false,
+  "file_name": "douyin.wtf_douyin_738xxxx.mp4",
+  "file_path": "/app/download/博主ID/douyin.wtf_douyin_738xxxx.mp4",
+  "file_size": 12345678,
+  "file_mtime": 1234567890.123,
+  "downloaded_at": "2026-07-10T12:00:00"
+}
 ```
 
-解析出：
+## 必需字段
 
 ```text
-video_id = 738xxxx
+video_id
+author_id
+platform
+type
+file_name
+file_size
+file_mtime
+downloaded_at
 ```
 
-## 3.3 辅助指纹
+## 可选字段
+
+```text
+desc
+create_time
+with_watermark
+file_path
+```
+
+注意：
+
+`file_path` 可能是采集服务容器内路径，不一定等于 EchoLens 在 Windows 部署机上看到的真实路径。
+
+EchoLens 应以扫描到的本地 `.mp4` 路径作为最终 `source_path`。
+
+---
+
+# 4. 去重策略
+
+## 4.1 主去重键
+
+MVP 阶段主去重键：
+
+```text
+platform + author_id + video_id
+```
+
+原因：
+
+- `video_id` 表示平台内视频唯一标识
+- `author_id` 表示创作者来源
+- `platform` 保留未来多平台扩展空间
+
+## 4.2 辅助指纹
 
 辅助字段：
 
-- file_path
-- file_size
-- file_mtime
+```text
+source_path
+file_name
+file_size
+file_mtime
+```
+
+用途：
+
+- 排查文件变更
+- 处理异常元数据
+- 辅助定位本地文件
 
 不建议 MVP 阶段默认计算完整文件 hash，因为视频文件较大，成本高。
 
 ---
 
-# 4. 扫描策略
+# 5. 扫描策略
 
-## 4.1 mtime 快速过滤
+## 5.1 mtime 快速过滤
 
-使用文件修改时间作为扫描加速手段。
+使用 `.mp4` 文件修改时间作为扫描加速手段。
 
 ```text
 mtime > last_scan_time - buffer
@@ -89,54 +158,82 @@ mtime > last_scan_time - buffer
 
 mtime 只用于减少扫描范围，不作为最终去重依据。
 
-## 4.2 MySQL 最终去重
+## 5.2 JSON 元数据优先
 
-最终是否处理，由 MySQL 中的 videos 表决定。
+扫描到 `.mp4` 后，优先读取：
 
-判断优先级：
+```text
+<video_file>.json
+```
+
+如果元数据存在且合法，则使用其中的：
 
 ```text
 video_id
-    ↓
-file_path + file_size + file_mtime
+author_id
+platform
+create_time
+desc
+file_size
+file_mtime
+downloaded_at
 ```
+
+如果元数据缺失或解析失败，本轮跳过该视频，并记录错误。
+
+MVP 不再依赖从文件名解析 `video_id` 作为主路径。
 
 ---
 
-# 5. 文件稳定性检查
+# 6. 文件稳定性检查
 
 为避免处理正在下载的视频，需要做稳定性检查。
 
 推荐规则：
 
-1. 文件最近修改时间距离当前时间小于 30 秒，跳过。
-2. 可选：间隔数秒检查文件大小是否变化。
-3. 文件稳定后再加入处理队列。
+1. `.mp4` 文件必须存在。
+2. `.mp4.json` 文件必须存在。
+3. 文件最近修改时间距离当前时间小于 30 秒，跳过。
+4. 可选：间隔数秒检查文件大小是否变化。
+5. 文件和元数据都稳定后再加入处理队列。
 
 ---
 
-# 6. MySQL 表设计草案
+# 7. MySQL 表设计草案
 
 ## creators
 
 ```text
 id
+platform
+author_id
 creator_name
 source_dir
 created_at
 updated_at
 ```
 
+建议：
+
+```text
+unique(platform, author_id)
+```
+
 ## videos
 
 ```text
 id
+platform
 video_id
+author_id
 creator_id
-file_path
+source_path
 file_name
 file_size
 file_mtime
+desc
+create_time
+downloaded_at
 status
 created_at
 updated_at
@@ -147,20 +244,12 @@ error_message
 建议：
 
 ```text
-unique(video_id)
+unique(platform, author_id, video_id)
 ```
-
-如果 video_id 解析失败，则使用：
-
-```text
-file_path + file_size + file_mtime
-```
-
-作为辅助去重依据。
 
 ---
 
-# 7. Redis 队列设计
+# 8. Redis 队列设计
 
 推荐队列：
 
@@ -173,19 +262,23 @@ echolens:queue:video
 ```json
 {
   "video_id": "738xxxx",
+  "author_id": "author_xxx",
+  "platform": "douyin",
   "creator_id": 1,
-  "file_path": "D:\\BaiduNetdiskDownload\\dy src\\博主A\\douyin.wtf_douyin_738xxxx.mp4"
+  "video_db_id": 1001,
+  "source_path": "D:\\BaiduNetdiskDownload\\dy src\\博主A\\douyin.wtf_douyin_738xxxx.mp4"
 }
 ```
 
 ---
 
-# 8. 状态设计
+# 9. 状态设计
 
 视频处理状态：
 
 ```text
 pending
+queued
 processing
 done
 failed
@@ -194,7 +287,8 @@ skipped
 
 含义：
 
-- pending：已发现，等待处理
+- pending：已发现，等待入队
+- queued：已推入 Redis 队列
 - processing：处理中
 - done：处理完成
 - failed：处理失败
@@ -202,7 +296,7 @@ skipped
 
 ---
 
-# 9. 扫描流程
+# 10. 扫描流程
 
 ```text
 读取 DOUYIN_SOURCE_DIR
@@ -213,26 +307,40 @@ skipped
         ↓
 mtime 快速过滤
         ↓
+检查 .mp4.json 是否存在
+        ↓
+读取并校验元数据
+        ↓
 文件稳定性检查
         ↓
-解析 video_id
+用 platform + author_id + video_id 查询 MySQL
         ↓
-查询 MySQL 是否已存在
-        ↓
-不存在则插入 videos 表
+不存在则插入 creators / videos
         ↓
 推送 Redis 队列
+        ↓
+更新 videos.status = queued
 ```
 
 ---
 
-# 10. 失败处理
+# 11. 失败处理
 
-如果 video_id 解析失败：
+如果 `.mp4.json` 缺失：
 
-- 仍然允许入库
-- 标记 `video_id_parse_failed`
-- 使用文件指纹辅助去重
+- 本轮跳过
+- 记录 `metadata_missing`
+- 下轮继续扫描
+
+如果 `.mp4.json` 解析失败：
+
+- 本轮跳过
+- 记录 `metadata_parse_failed`
+
+如果必需字段缺失：
+
+- 本轮跳过
+- 记录 `metadata_invalid`
 
 如果文件正在下载：
 
@@ -246,14 +354,15 @@ mtime 快速过滤
 
 ---
 
-# 11. MVP 验收标准
+# 12. MVP 验收标准
 
 扫描模块满足：
 
 1. 能扫描固定根目录下的博主子目录
 2. 能发现 `.mp4` 文件
-3. 能解析常见文件名中的 video_id
-4. 能将新增视频写入 MySQL
-5. 能将处理任务推入 Redis
-6. 能避免重复入队
-7. 能跳过正在下载的文件
+3. 能读取同名 `.mp4.json` 元数据
+4. 能用 `platform + author_id + video_id` 去重
+5. 能将新增视频写入 MySQL
+6. 能将处理任务推入 Redis
+7. 能避免重复入队
+8. 能跳过正在下载或元数据不完整的文件
