@@ -1,0 +1,39 @@
+"""EchoLens command line interface."""
+
+import typer
+
+from echolens.collector.local_scanner import LocalSourceScanner
+from echolens.core.config import get_settings
+
+app = typer.Typer(help="EchoLens command line tools.")
+
+
+@app.command()
+def scan() -> None:
+    """Scan the local Douyin source directory."""
+
+    settings = get_settings()
+    scanner = LocalSourceScanner(settings)
+    items = scanner.scan()
+
+    typer.echo(f"Source directory: {settings.douyin_source_dir}")
+    typer.echo(f"Discovered valid video items: {len(items)}")
+
+    for item in items:
+        typer.echo(
+            f"- [{item.platform}] author={item.author_id} video={item.video_id} path={item.source_path}"
+        )
+
+
+@app.command()
+def worker() -> None:
+    """Run the video processing worker."""
+
+    typer.echo("Worker is not implemented yet.")
+
+
+@app.command()
+def analyze() -> None:
+    """Run analysis for queued or pending content."""
+
+    typer.echo("Analysis is not implemented yet.")
