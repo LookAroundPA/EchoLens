@@ -127,6 +127,68 @@ class VideoRepository:
         )
         cursor.close()
 
+    def get_video(self, video_db_id: int) -> dict[str, Any] | None:
+        """Return one video row by its EchoLens database id."""
+
+        cursor = self.connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM videos WHERE id = %s LIMIT 1", (video_db_id,))
+        row = cursor.fetchone()
+        cursor.close()
+        return row
+
+    def claim_video_for_audio(self, video_db_id: int) -> dict[str, Any] | None:
+        """Atomically transition a queued video to processing and return its row."""
+
+        cursor = self.connection.cursor()
+        cursor.execute(
+            """
+            UPDATE videos
+            SET status = %s, updated_at = %s, error_message = NULL
+            WHERE id = %s AND status = %s
+            """,
+            ("processing", datetime.now(), video_db_id, "queued"),
+        )
+        claimed = cursor.rowcount == 1
+        cursor.close()
+        if not claimed:
+            return None
+        return self.get_video(video_db_id)
+
+    def mark_audio_done(self, video_db_id: int, audio_path: str, audio_size: int) -> None:
+        """Persist a completed WAV output and finalize the audio stage."""
+
+        cursor = self.connection.cursor()
+        now = datetime.now()
+        cursor.execute(
+            """
+            UPDATE videos
+            SET status = %s,
+                audio_path = %s,
+                audio_size = %s,
+                audio_created_at = %s,
+                processed_at = %s,
+                updated_at = %s,
+                error_message = NULL
+            WHERE id = %s
+            """,
+            ("audio_done", audio_path, audio_size, now, now, now, video_db_id),
+        )
+        cursor.close()
+
+    def release_video_for_retry(self, video_db_id: int, error_message: str) -> None:
+        """Return a failed audio job to queued and retain its failure detail."""
+
+        cursor = self.connection.cursor()
+        cursor.execute(
+            """
+            UPDATE videos
+            SET status = %s, updated_at = %s, error_message = %s
+            WHERE id = %s
+            """,
+            ("queued", datetime.now(), error_message[:65535], video_db_id),
+        )
+        cursor.close()
+
 
 def build_video_queue_payload(item: LocalVideoItem, video_db_id: int, creator_db_id: int) -> dict[str, Any]:
     """Build a Redis payload for video processing."""

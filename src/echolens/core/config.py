@@ -15,6 +15,14 @@ class Settings(BaseSettings):
         default=Path(r"D:\BaiduNetdiskDownload\dy src"),
         description="Root directory where the external Douyin collector writes video files.",
     )
+    douyin_source_host_dir: Path = Field(
+        default=Path(r"D:\BaiduNetdiskDownload\dy src"),
+        description="Host source root used to map legacy Windows database paths inside Docker.",
+    )
+    audio_output_dir: Path = Field(
+        default=Path(r"D:\BaiduNetdiskDownload\dy out"),
+        description="Directory where extracted WAV files are stored.",
+    )
 
     mysql_host: str = "localhost"
     mysql_port: int = 3306
@@ -28,6 +36,7 @@ class Settings(BaseSettings):
     redis_db: int = 0
 
     redis_video_queue: str = "echolens:queue:video"
+    redis_video_processing_queue: str = "echolens:queue:video:processing"
     redis_video_lock_prefix: str = "echolens:lock:video"
 
     scan_stability_seconds: int = 30

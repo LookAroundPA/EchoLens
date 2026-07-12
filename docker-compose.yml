@@ -8,10 +8,12 @@ services:
       - .env
     environment:
       DOUYIN_SOURCE_DIR: /data/douyin
+      AUDIO_OUTPUT_DIR: /data/audio
       MYSQL_HOST: host.docker.internal
       REDIS_HOST: host.docker.internal
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - "D:/BaiduNetdiskDownload/dy src:/data/douyin:ro"
+      - "D:/BaiduNetdiskDownload/dy out:/data/audio"
     command: ["scan"]

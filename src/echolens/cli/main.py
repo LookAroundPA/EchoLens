@@ -5,6 +5,7 @@ import typer
 from echolens.collector.local_ingest import LocalIngestService
 from echolens.collector.local_scanner import LocalSourceScanner
 from echolens.core.config import get_settings
+from echolens.worker import AudioWorker
 
 app = typer.Typer(help="EchoLens command line tools.")
 
@@ -43,10 +44,27 @@ def scan(
 
 
 @app.command()
-def worker() -> None:
-    """Run the video processing worker."""
+def worker(
+    once: bool = typer.Option(default=False, help="Process at most one task and exit."),
+    max_tasks: int | None = typer.Option(default=None, min=1, help="Maximum tasks to process before exit."),
+) -> None:
+    """Extract WAV files for queued videos."""
 
-    typer.echo("Worker is not implemented yet.")
+    if once and max_tasks is not None:
+        raise typer.BadParameter("Use either --once or --max-tasks, not both.")
+
+    limit = 1 if once else max_tasks
+    processed = completed = skipped = 0
+    service = AudioWorker()
+    while limit is None or processed < limit:
+        result = service.process_one(timeout=5)
+        if not result.handled:
+            break
+        processed += 1
+        completed += int(result.completed)
+        skipped += int(result.skipped)
+
+    typer.echo(f"Worker result: processed={processed} completed={completed} skipped={skipped}")
 
 
 @app.command()

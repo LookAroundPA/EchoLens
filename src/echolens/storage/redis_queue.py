@@ -42,3 +42,28 @@ class VideoQueue:
             return None
         _, payload = item
         return json.loads(payload)
+
+    def reserve(self, timeout: int = 5) -> tuple[str, dict[str, Any]] | None:
+        """Atomically move one task to the processing queue and return it."""
+
+        payload = self.client.brpoplpush(
+            self.settings.redis_video_queue,
+            self.settings.redis_video_processing_queue,
+            timeout=timeout,
+        )
+        if payload is None:
+            return None
+        return payload, json.loads(payload)
+
+    def acknowledge(self, raw_payload: str) -> None:
+        """Remove a successfully handled task from the processing queue."""
+
+        self.client.lrem(self.settings.redis_video_processing_queue, 1, raw_payload)
+
+    def retry(self, raw_payload: str) -> None:
+        """Return a failed task to the ready queue without losing it."""
+
+        pipeline = self.client.pipeline()
+        pipeline.lrem(self.settings.redis_video_processing_queue, 1, raw_payload)
+        pipeline.rpush(self.settings.redis_video_queue, raw_payload)
+        pipeline.execute()

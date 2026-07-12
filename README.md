@@ -133,6 +133,14 @@ docker compose run --rm echolens scan
 docker compose run --rm echolens scan --enqueue
 ```
 
+已有数据库在首次运行 Worker 前，需要执行 [mysql_audio_migration.sql](scripts/mysql_audio_migration.sql) 中的迁移，为 `videos` 添加音频输出字段。
+
+提取队列中的 WAV 音频（保存到 `D:\BaiduNetdiskDownload\dy out`）：
+
+```powershell
+docker compose run --rm echolens worker --max-tasks 8
+```
+
 直接执行 `docker compose up` 时默认只运行 `echolens scan`，不会入库或入队。
 
 ## 开源协议
