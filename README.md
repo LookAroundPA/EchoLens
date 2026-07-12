@@ -116,6 +116,25 @@ AI 洞察
 
 EchoLens 希望探索如何让隐藏在声音中的人类知识，更容易被发现、理解和复用。
 
+## Docker 运行
+
+项目通过 `.env` 读取 MySQL 和 Redis 凭据。Compose 会将宿主机视频目录只读挂载到容器，并通过 `host.docker.internal` 连接宿主机服务。
+
+构建镜像并执行只读扫描：
+
+```powershell
+docker compose build
+docker compose run --rm echolens scan
+```
+
+确认扫描结果正确后，显式写入 MySQL 并推送 Redis 任务：
+
+```powershell
+docker compose run --rm echolens scan --enqueue
+```
+
+直接执行 `docker compose up` 时默认只运行 `echolens scan`，不会入库或入队。
+
 ## 开源协议
 
 待定

@@ -1,0 +1,17 @@
+services:
+  echolens:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: echolens:local
+    env_file:
+      - .env
+    environment:
+      DOUYIN_SOURCE_DIR: /data/douyin
+      MYSQL_HOST: host.docker.internal
+      REDIS_HOST: host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - "D:/BaiduNetdiskDownload/dy src:/data/douyin:ro"
+    command: ["scan"]
