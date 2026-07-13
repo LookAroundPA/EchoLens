@@ -28,14 +28,19 @@ services:
     env_file:
       - .env
     environment:
+      DOUYIN_SOURCE_DIR: /data/douyin
       AUDIO_OUTPUT_DIR: /data/audio
       MYSQL_HOST: host.docker.internal
+      REDIS_HOST: host.docker.internal
+      HF_HOME: /models/huggingface
       API_HOST: 0.0.0.0
       API_PORT: 8000
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - "D:/BaiduNetdiskDownload/dy out:/data/audio:ro"
+      - "D:/BaiduNetdiskDownload/dy src:/data/douyin:ro"
+      - "D:/BaiduNetdiskDownload/dy out:/data/audio"
+      - "echolens_model_cache:/models"
     ports:
       - "8000:8000"
     command: ["api", "--host", "0.0.0.0", "--port", "8000"]
