@@ -25,10 +25,20 @@ def scan(
 
     typer.echo(f"Source directory: {settings.douyin_source_dir}")
     typer.echo(f"Discovered valid video items: {len(items)}")
+    typer.echo(f"Skipped source items: {len(scanner.issues)}")
 
     for item in items:
         typer.echo(
-            f"- [{item.platform}] author={item.author_id} video={item.video_id} path={item.source_path}"
+            "- "
+            f"[{item.platform}] creator_sec_uid={item.creator_sec_uid} "
+            f"creator={item.creator_name or '-'} video={item.video_id} path={item.source_path}"
+        )
+
+    for issue in scanner.issues:
+        typer.echo(
+            f"! [{issue.code}] video={issue.video_path} metadata={issue.metadata_path} "
+            f"message={issue.message}",
+            err=True,
         )
 
     if not enqueue:
