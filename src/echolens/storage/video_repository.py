@@ -1,6 +1,7 @@
 """Repository methods for creator and video ingest state."""
 
 from datetime import datetime
+import json
 from typing import Any
 
 from mysql.connector import MySQLConnection
@@ -15,33 +16,75 @@ class VideoRepository:
         self.connection = connection
 
     def ensure_creator(self, item: LocalVideoItem) -> int:
-        """Ensure a creator row exists and return its database id."""
+        """Ensure a creator exists using ``platform + sec_uid`` as identity."""
 
+        now = datetime.now()
         cursor = self.connection.cursor(dictionary=True)
+
+        # Backfill rows created before sec_uid became the canonical creator key.
         cursor.execute(
             """
-            INSERT INTO creators (platform, author_id, creator_name, source_dir, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            UPDATE creators
+            SET sec_uid = %s,
+                platform_uid = %s,
+                provider_author_id = %s,
+                creator_name = %s,
+                source_dir = %s,
+                updated_at = %s
+            WHERE platform = %s
+              AND sec_uid IS NULL
+              AND provider_author_id = %s
+            """,
+            (
+                item.creator_sec_uid,
+                item.author_uid,
+                item.provider_author_id,
+                item.creator_name,
+                str(item.source_path.parent),
+                now,
+                item.platform,
+                item.provider_author_id,
+            ),
+        )
+
+        cursor.execute(
+            """
+            INSERT INTO creators (
+                platform,
+                sec_uid,
+                platform_uid,
+                provider_author_id,
+                creator_name,
+                source_dir,
+                created_at,
+                updated_at
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
+                platform_uid = VALUES(platform_uid),
+                provider_author_id = VALUES(provider_author_id),
+                creator_name = VALUES(creator_name),
                 source_dir = VALUES(source_dir),
                 updated_at = VALUES(updated_at)
             """,
             (
                 item.platform,
-                item.author_id,
-                item.source_path.parent.name,
+                item.creator_sec_uid,
+                item.author_uid,
+                item.provider_author_id,
+                item.creator_name,
                 str(item.source_path.parent),
-                datetime.now(),
-                datetime.now(),
+                now,
+                now,
             ),
         )
         cursor.execute(
             """
             SELECT id FROM creators
-            WHERE platform = %s AND author_id = %s
+            WHERE platform = %s AND sec_uid = %s
             LIMIT 1
             """,
-            (item.platform, item.author_id),
+            (item.platform, item.creator_sec_uid),
         )
         row = cursor.fetchone()
         cursor.close()
@@ -49,21 +92,62 @@ class VideoRepository:
             raise RuntimeError("Failed to ensure creator row.")
         return int(row["id"])
 
-    def video_exists(self, item: LocalVideoItem) -> bool:
-        """Return whether a video already exists by primary dedupe key."""
+    def video_exists(self, item: LocalVideoItem, creator_db_id: int) -> bool:
+        """Return whether a video exists and backfill a legacy identity row."""
 
         cursor = self.connection.cursor(dictionary=True)
         cursor.execute(
             """
             SELECT id FROM videos
-            WHERE platform = %s AND author_id = %s AND video_id = %s
+            WHERE platform = %s AND creator_sec_uid = %s AND video_id = %s
             LIMIT 1
             """,
             item.dedupe_key,
         )
         row = cursor.fetchone()
+        if row is not None:
+            cursor.close()
+            return True
+
+        cursor.execute(
+            """
+            SELECT id FROM videos
+            WHERE platform = %s
+              AND creator_id = %s
+              AND video_id = %s
+              AND creator_sec_uid IS NULL
+            LIMIT 1
+            """,
+            (item.platform, creator_db_id, item.video_id),
+        )
+        legacy_row = cursor.fetchone()
+        if legacy_row is None:
+            cursor.close()
+            return False
+
+        cursor.execute(
+            """
+            UPDATE videos
+            SET creator_sec_uid = %s,
+                provider_author_id = %s,
+                author_uid = %s,
+                statistics_json = %s,
+                metadata_json = %s,
+                updated_at = %s
+            WHERE id = %s
+            """,
+            (
+                item.creator_sec_uid,
+                item.provider_author_id,
+                item.author_uid,
+                json.dumps(item.statistics, ensure_ascii=False),
+                json.dumps(item.raw_metadata, ensure_ascii=False),
+                datetime.now(),
+                int(legacy_row["id"]),
+            ),
+        )
         cursor.close()
-        return row is not None
+        return True
 
     def insert_pending_video(self, item: LocalVideoItem, creator_db_id: int) -> int:
         """Insert a pending video row and return its database id."""
@@ -74,7 +158,9 @@ class VideoRepository:
             """
             INSERT INTO videos (
                 platform,
-                author_id,
+                creator_sec_uid,
+                provider_author_id,
+                author_uid,
                 video_id,
                 creator_id,
                 file_path,
@@ -85,15 +171,22 @@ class VideoRepository:
                 description,
                 source_create_time,
                 downloaded_at,
+                statistics_json,
+                metadata_json,
                 status,
                 created_at,
                 updated_at
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s
+            )
             """,
             (
                 item.platform,
-                item.author_id,
+                item.creator_sec_uid,
+                item.provider_author_id,
+                item.author_uid,
                 item.video_id,
                 creator_db_id,
                 str(item.source_path),
@@ -104,6 +197,8 @@ class VideoRepository:
                 item.desc,
                 item.create_time,
                 item.downloaded_at,
+                json.dumps(item.statistics, ensure_ascii=False),
+                json.dumps(item.raw_metadata, ensure_ascii=False),
                 "pending",
                 now,
                 now,
@@ -197,7 +292,8 @@ def build_video_queue_payload(item: LocalVideoItem, video_db_id: int, creator_db
         "video_db_id": video_db_id,
         "creator_db_id": creator_db_id,
         "platform": item.platform,
-        "author_id": item.author_id,
+        "creator_sec_uid": item.creator_sec_uid,
+        "provider_author_id": item.provider_author_id,
         "video_id": item.video_id,
         "source_path": str(item.source_path),
         "metadata_path": str(item.metadata_path),
