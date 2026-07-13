@@ -2,13 +2,78 @@
 
 import typer
 
+from echolens.analysis_worker import AnalysisWorker
 from echolens.collector.local_ingest import LocalIngestService
 from echolens.collector.local_scanner import LocalSourceScanner
-from echolens.core.config import get_settings
+from echolens.core.config import Settings, get_settings
 from echolens.transcription_worker import TranscriptionWorker
 from echolens.worker import AudioWorker
 
 app = typer.Typer(help="EchoLens command line tools.")
+
+
+def _validate_limit_options(once: bool, max_tasks: int | None) -> int | None:
+    if once and max_tasks is not None:
+        raise typer.BadParameter("Use either --once or --max-tasks, not both.")
+    return 1 if once else max_tasks
+
+
+def _require_deepseek(settings: Settings) -> None:
+    if settings.llm_provider.lower() != "deepseek":
+        raise typer.BadParameter("Only LLM_PROVIDER=deepseek is implemented.")
+    if not settings.llm_api_key:
+        raise typer.BadParameter("LLM_API_KEY is required for DeepSeek analysis.")
+
+
+def _run_audio_stage(settings: Settings, limit: int | None) -> tuple[int, int, int]:
+    processed = completed = skipped = 0
+    service = AudioWorker(settings=settings)
+    while limit is None or processed < limit:
+        result = service.process_one(timeout=1)
+        if not result.handled:
+            break
+        processed += 1
+        completed += int(result.completed)
+        skipped += int(result.skipped)
+    return processed, completed, skipped
+
+
+def _run_transcription_stage(settings: Settings, limit: int | None) -> tuple[int, int, int]:
+    processed = completed = failed = 0
+    service = TranscriptionWorker(settings=settings)
+    while limit is None or processed < limit:
+        result = service.process_one()
+        if not result.handled:
+            break
+        processed += 1
+        completed += int(result.completed)
+        failed += int(result.failed)
+        if result.failed:
+            typer.echo(
+                f"! transcription_failed video_db_id={result.video_db_id} "
+                f"message={result.error_message}",
+                err=True,
+            )
+    return processed, completed, failed
+
+
+def _run_analysis_stage(settings: Settings, limit: int | None) -> tuple[int, int, int]:
+    processed = completed = failed = 0
+    service = AnalysisWorker(settings=settings)
+    while limit is None or processed < limit:
+        result = service.process_one()
+        if not result.handled:
+            break
+        processed += 1
+        completed += int(result.completed)
+        failed += int(result.failed)
+        if result.failed:
+            typer.echo(
+                f"! analysis_failed video_db_id={result.video_db_id} "
+                f"message={result.error_message}",
+                err=True,
+            )
+    return processed, completed, failed
 
 
 @app.command()
@@ -61,20 +126,8 @@ def worker(
 ) -> None:
     """Extract WAV files for queued videos."""
 
-    if once and max_tasks is not None:
-        raise typer.BadParameter("Use either --once or --max-tasks, not both.")
-
-    limit = 1 if once else max_tasks
-    processed = completed = skipped = 0
-    service = AudioWorker()
-    while limit is None or processed < limit:
-        result = service.process_one(timeout=5)
-        if not result.handled:
-            break
-        processed += 1
-        completed += int(result.completed)
-        skipped += int(result.skipped)
-
+    limit = _validate_limit_options(once, max_tasks)
+    processed, completed, skipped = _run_audio_stage(get_settings(), limit)
     typer.echo(f"Worker result: processed={processed} completed={completed} skipped={skipped}")
 
 
@@ -85,9 +138,7 @@ def transcribe(
 ) -> None:
     """Transcribe audio_done videos with Faster-Whisper."""
 
-    if once and max_tasks is not None:
-        raise typer.BadParameter("Use either --once or --max-tasks, not both.")
-
+    limit = _validate_limit_options(once, max_tasks)
     settings = get_settings()
     typer.echo(
         "Transcription model: "
@@ -95,30 +146,61 @@ def transcribe(
         f"compute_type={settings.whisper_compute_type}"
     )
 
-    limit = 1 if once else max_tasks
-    processed = completed = failed = 0
-    service = TranscriptionWorker(settings=settings)
-    while limit is None or processed < limit:
-        result = service.process_one()
-        if not result.handled:
-            break
-        processed += 1
-        completed += int(result.completed)
-        failed += int(result.failed)
-        if result.failed:
-            typer.echo(
-                f"! transcription_failed video_db_id={result.video_db_id} "
-                f"message={result.error_message}",
-                err=True,
-            )
-
+    processed, completed, failed = _run_transcription_stage(settings, limit)
     typer.echo(
         f"Transcription result: processed={processed} completed={completed} failed={failed}"
     )
 
 
 @app.command()
-def analyze() -> None:
-    """Run analysis for queued or pending content."""
+def analyze(
+    once: bool = typer.Option(default=False, help="Analyze at most one transcript and exit."),
+    max_tasks: int | None = typer.Option(default=None, min=1, help="Maximum transcripts to analyze."),
+) -> None:
+    """Analyze transcribed videos with DeepSeek."""
 
-    typer.echo("Analysis is not implemented yet.")
+    limit = _validate_limit_options(once, max_tasks)
+    settings = get_settings()
+    _require_deepseek(settings)
+    typer.echo(f"Analysis model: provider={settings.llm_provider} model={settings.llm_model}")
+
+    processed, completed, failed = _run_analysis_stage(settings, limit)
+    typer.echo(f"Analysis result: processed={processed} completed={completed} failed={failed}")
+
+
+@app.command()
+def pipeline(
+    max_tasks: int | None = typer.Option(
+        default=None,
+        min=1,
+        help="Maximum items processed in each stage; omit to drain all available work.",
+    ),
+) -> None:
+    """Run audio extraction, transcription, and DeepSeek analysis in sequence."""
+
+    settings = get_settings()
+    _require_deepseek(settings)
+
+    audio_processed, audio_completed, audio_skipped = _run_audio_stage(settings, max_tasks)
+    transcription_processed, transcription_completed, transcription_failed = (
+        _run_transcription_stage(settings, max_tasks)
+    )
+    analysis_processed, analysis_completed, analysis_failed = _run_analysis_stage(
+        settings,
+        max_tasks,
+    )
+
+    typer.echo("Pipeline result:")
+    typer.echo(
+        "  audio: "
+        f"processed={audio_processed} completed={audio_completed} skipped={audio_skipped}"
+    )
+    typer.echo(
+        "  transcription: "
+        f"processed={transcription_processed} completed={transcription_completed} "
+        f"failed={transcription_failed}"
+    )
+    typer.echo(
+        "  analysis: "
+        f"processed={analysis_processed} completed={analysis_completed} failed={analysis_failed}"
+    )
