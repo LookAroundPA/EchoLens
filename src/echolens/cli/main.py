@@ -206,3 +206,22 @@ def pipeline(
         "  analysis: "
         f"processed={analysis_processed} completed={analysis_completed} failed={analysis_failed}"
     )
+
+
+@app.command()
+def api(
+    host: str | None = typer.Option(default=None, help="HTTP bind host."),
+    port: int | None = typer.Option(default=None, min=1, max=65535, help="HTTP bind port."),
+    reload: bool = typer.Option(default=False, help="Reload the server when Python files change."),
+) -> None:
+    """Run the read-only FastAPI service for the frontend."""
+
+    import uvicorn
+
+    settings = get_settings()
+    uvicorn.run(
+        "echolens.api.app:app",
+        host=host or settings.api_host,
+        port=port or settings.api_port,
+        reload=reload,
+    )
