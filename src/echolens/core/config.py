@@ -24,6 +24,13 @@ class Settings(BaseSettings):
         description="Directory where extracted WAV files are stored.",
     )
 
+    whisper_model: str = "large-v3"
+    whisper_device: str = "cpu"
+    whisper_compute_type: str = "int8"
+    whisper_language: str = ""
+    whisper_beam_size: int = 5
+    whisper_vad_filter: bool = True
+
     mysql_host: str = "localhost"
     mysql_port: int = 3306
     mysql_user: str = ""
