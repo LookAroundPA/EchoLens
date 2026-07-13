@@ -2,45 +2,35 @@
 
 React + TypeScript 前端，直接连接 EchoLens FastAPI。
 
-前端不需要安装或运行 Nginx。Docker 镜像只使用 Node.js，并通过 Vite Preview 提供已经构建好的页面。
+前端完全使用本机 Node.js 启动，不需要 Docker，也不需要 Nginx。
 
-## Docker 启动
+## 准备
 
-在仓库根目录运行：
+需要安装 Node.js 20 或更高版本。
+
+首次进入前端目录后安装依赖：
 
 ```powershell
-docker compose up --build api frontend
+cd frontend
+npm install
 ```
 
-访问：
+后端 API 需要先运行在：
 
 ```text
-前端：http://localhost:3000
-API：http://localhost:8000
-API 文档：http://localhost:8000/docs
+http://localhost:8000
 ```
 
-浏览器会从 `http://localhost:3000` 直接请求 `http://localhost:8000`。前端镜像构建参数默认为：
-
-```text
-VITE_API_BASE_URL=http://localhost:8000
-```
-
-需要使用其他 API 地址时，在项目 `.env` 中修改该值并重新构建前端镜像。
-
-## 本地开发
-
-先启动后端 API：
+可以继续使用后端 Docker：
 
 ```powershell
 docker compose up api
 ```
 
-再启动前端开发服务器：
+## 开发模式
 
 ```powershell
 cd frontend
-npm install
 npm run dev
 ```
 
@@ -50,7 +40,45 @@ npm run dev
 http://localhost:5173
 ```
 
-开发模式下，Vite 会把 `/api` 和 `/health` 代理到 `http://localhost:8000`。
+该模式支持热更新。
+
+## 构建后启动
+
+```powershell
+cd frontend
+npm run serve
+```
+
+`serve` 会先执行 TypeScript 检查和生产构建，再启动本地预览服务。
+
+访问：
+
+```text
+http://localhost:3000
+```
+
+## API 连接
+
+`npm run dev` 和 `npm run serve` 都会把：
+
+```text
+/api/*
+/health
+```
+
+代理到：
+
+```text
+http://localhost:8000
+```
+
+前端代码使用相对 API 路径，因此本地启动不需要配置额外环境变量。
+
+确实需要连接其他 API 地址时，可以在 `frontend/.env.local` 中设置：
+
+```text
+VITE_API_BASE_URL=http://其他地址:8000
+```
 
 ## 已实现页面
 
@@ -61,10 +89,8 @@ http://localhost:5173
 - 搜索：描述、摘要、转写、标签和关键观点；
 - 任务：扫描、pipeline、单视频任务的轮询、错误和结果查看。
 
-## 构建检查
+## 单独构建检查
 
 ```powershell
 npm run build
 ```
-
-该命令先执行 TypeScript 类型检查，再生成生产构建。
