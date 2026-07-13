@@ -27,11 +27,24 @@ class AudioPathTests(unittest.TestCase):
 
             self.assertEqual(resolved, video_path)
 
-    def test_output_path_is_deterministic_and_safe(self) -> None:
+    def test_output_path_uses_stable_creator_identity(self) -> None:
         settings = Settings(audio_output_dir=Path("/data/audio"))
         output_path = output_path_for(
-            {"platform": "douyin", "author_id": "a/b", "video_id": "123"},
+            {
+                "platform": "douyin",
+                "creator_sec_uid": "MS4w/a\\b",
+                "video_id": "123",
+            },
             settings,
         )
 
-        self.assertEqual(output_path, Path("/data/audio/douyin/a_b/123.wav"))
+        self.assertEqual(output_path, Path("/data/audio/douyin/MS4w_a_b/123.wav"))
+
+    def test_output_path_accepts_legacy_author_id_during_migration(self) -> None:
+        settings = Settings(audio_output_dir=Path("/data/audio"))
+        output_path = output_path_for(
+            {"platform": "douyin", "author_id": "legacy", "video_id": "123"},
+            settings,
+        )
+
+        self.assertEqual(output_path, Path("/data/audio/douyin/legacy/123.wav"))
