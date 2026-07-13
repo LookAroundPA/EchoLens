@@ -1,4 +1,4 @@
-"""Persistence operations for the minimal transcription stage."""
+"""Persistence operations for the transcription stage."""
 
 from datetime import datetime
 import json
@@ -18,25 +18,37 @@ class TranscriptRepository:
     def claim_next_video(self) -> dict[str, Any] | None:
         """Claim the oldest audio-complete video for transcription."""
 
+        return self._claim_video()
+
+    def claim_video(self, video_db_id: int) -> dict[str, Any] | None:
+        """Claim one specific audio-complete video for transcription."""
+
+        return self._claim_video(video_db_id)
+
+    def _claim_video(self, video_db_id: int | None = None) -> dict[str, Any] | None:
         cursor = self.connection.cursor(dictionary=True)
+        params: list[Any] = ["audio_done"]
+        id_condition = ""
+        if video_db_id is not None:
+            id_condition = " AND id = %s"
+            params.append(video_db_id)
         cursor.execute(
             """
             SELECT id
             FROM videos
             WHERE status = %s
               AND audio_path IS NOT NULL
-            ORDER BY id
-            LIMIT 1
-            FOR UPDATE
-            """,
-            ("audio_done",),
+            """
+            + id_condition
+            + " ORDER BY id LIMIT 1 FOR UPDATE",
+            tuple(params),
         )
         row = cursor.fetchone()
         if row is None:
             cursor.close()
             return None
 
-        video_db_id = int(row["id"])
+        claimed_id = int(row["id"])
         cursor.execute(
             """
             UPDATE videos
@@ -46,13 +58,13 @@ class TranscriptRepository:
             WHERE id = %s
               AND status = %s
             """,
-            ("transcribing", datetime.now(), video_db_id, "audio_done"),
+            ("transcribing", datetime.now(), claimed_id, "audio_done"),
         )
         if cursor.rowcount != 1:
             cursor.close()
             return None
 
-        cursor.execute("SELECT * FROM videos WHERE id = %s LIMIT 1", (video_db_id,))
+        cursor.execute("SELECT * FROM videos WHERE id = %s LIMIT 1", (claimed_id,))
         video = cursor.fetchone()
         cursor.close()
         return video
