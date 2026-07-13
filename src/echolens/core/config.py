@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     llm_temperature: float = Field(default=0.2, ge=0.0, le=2.0)
     llm_max_tokens: int = Field(default=2048, ge=256)
 
+    api_host: str = "0.0.0.0"
+    api_port: int = Field(default=8000, ge=1, le=65535)
+    api_cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
     mysql_host: str = "localhost"
     mysql_port: int = 3306
     mysql_user: str = ""
@@ -54,6 +58,15 @@ class Settings(BaseSettings):
     redis_video_lock_prefix: str = "echolens:lock:video"
 
     scan_stability_seconds: int = 30
+
+    def parsed_api_cors_origins(self) -> list[str]:
+        """Return normalized browser origins allowed to call the HTTP API."""
+
+        return [
+            origin.strip().rstrip("/")
+            for origin in self.api_cors_origins.split(",")
+            if origin.strip()
+        ]
 
 
 _settings: Settings | None = None
