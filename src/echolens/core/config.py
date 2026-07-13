@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     whisper_beam_size: int = 5
     whisper_vad_filter: bool = True
 
+    llm_provider: str = "deepseek"
+    llm_api_key: str = ""
+    llm_model: str = "deepseek-v4-flash"
+    llm_base_url: str = "https://api.deepseek.com"
+    llm_temperature: float = Field(default=0.2, ge=0.0, le=2.0)
+    llm_max_tokens: int = Field(default=2048, ge=256)
+
     mysql_host: str = "localhost"
     mysql_port: int = 3306
     mysql_user: str = ""
