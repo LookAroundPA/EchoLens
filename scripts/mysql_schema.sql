@@ -47,17 +47,20 @@ CREATE TABLE IF NOT EXISTS videos (
 
 CREATE TABLE IF NOT EXISTS processing_jobs (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    video_id BIGINT UNSIGNED NOT NULL,
+    video_id BIGINT UNSIGNED NULL,
     job_type VARCHAR(64) NOT NULL,
     status VARCHAR(32) NOT NULL,
     retry_count INT NOT NULL DEFAULT 0,
+    payload_json JSON NULL,
+    result_json JSON NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     started_at DATETIME NULL,
     finished_at DATETIME NULL,
     error_message TEXT NULL,
     KEY idx_jobs_video_id (video_id),
-    KEY idx_jobs_status (status)
+    KEY idx_jobs_status (status),
+    KEY idx_jobs_type (job_type)
 );
 
 CREATE TABLE IF NOT EXISTS transcripts (
