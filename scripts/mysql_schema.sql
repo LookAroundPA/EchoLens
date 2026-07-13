@@ -1,18 +1,24 @@
 CREATE TABLE IF NOT EXISTS creators (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     platform VARCHAR(32) NOT NULL,
-    author_id VARCHAR(128) NOT NULL,
+    sec_uid VARCHAR(255) NOT NULL,
+    platform_uid VARCHAR(128) NULL,
+    provider_author_id VARCHAR(255) NULL,
     creator_name VARCHAR(255) NULL,
     source_dir TEXT NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
-    UNIQUE KEY uq_creators_platform_author (platform, author_id)
+    UNIQUE KEY uq_creators_platform_sec_uid (platform, sec_uid),
+    KEY idx_creators_platform_uid (platform, platform_uid),
+    KEY idx_creators_provider_author (platform, provider_author_id)
 );
 
 CREATE TABLE IF NOT EXISTS videos (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     platform VARCHAR(32) NOT NULL,
-    author_id VARCHAR(128) NOT NULL,
+    creator_sec_uid VARCHAR(255) NOT NULL,
+    provider_author_id VARCHAR(255) NULL,
+    author_uid VARCHAR(128) NULL,
     video_id VARCHAR(128) NOT NULL,
     creator_id BIGINT UNSIGNED NOT NULL,
     file_path TEXT NOT NULL,
@@ -23,6 +29,8 @@ CREATE TABLE IF NOT EXISTS videos (
     description TEXT NULL,
     source_create_time BIGINT NULL,
     downloaded_at VARCHAR(64) NULL,
+    statistics_json JSON NULL,
+    metadata_json JSON NOT NULL,
     status VARCHAR(32) NOT NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
@@ -31,8 +39,9 @@ CREATE TABLE IF NOT EXISTS videos (
     audio_size BIGINT UNSIGNED NULL,
     audio_created_at DATETIME NULL,
     error_message TEXT NULL,
-    UNIQUE KEY uq_videos_platform_author_video (platform, author_id, video_id),
+    UNIQUE KEY uq_videos_platform_creator_video (platform, creator_sec_uid, video_id),
     KEY idx_videos_creator_id (creator_id),
+    KEY idx_videos_provider_author (platform, provider_author_id),
     KEY idx_videos_status (status)
 );
 

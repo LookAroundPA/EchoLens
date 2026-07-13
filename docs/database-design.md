@@ -2,161 +2,229 @@
 
 ## 1. 设计目标
 
-本文定义 EchoLens MVP 阶段的数据存储、任务队列和状态流转。
+MySQL 是 EchoLens 业务状态和处理结果的权威存储。Redis 只承担任务投递、领取、锁和短期运行时状态。
 
-当前部署环境：
+数据库设计必须支持：
 
-- MySQL：持久化数据
-- Redis：任务队列与运行时锁
-- Windows 本地视频目录：保存采集侧落盘的视频与元数据
+- 稳定识别同一创作者；
+- 防止视频重复处理；
+- 保存外部提供方的原始 metadata；
+- 记录音频、转写和分析阶段结果；
+- 支持失败重试、任务恢复和结果版本演进；
+- 不依赖外部采集服务容器路径。
 
-MVP 不再使用 SQLite 作为主存储。
-
----
-
-# 2. 总体数据流
+当前已实现链路：
 
 ```text
-本地视频目录
-    ↓
-Scanner
-    ↓
-MySQL 写入 creators / videos
-    ↓
-Redis 推送处理任务
-    ↓
-Worker 消费任务
-    ↓
-FFmpeg 提取音频
-    ↓
-Faster-Whisper 转写
-    ↓
-LLM 分析
-    ↓
-MySQL 写入 transcripts / analyses
+scan → queued → processing → audio_done
 ```
 
----
+目标完整链路：
 
-# 3. 存储职责划分
+```text
+scan
+  → audio_queued
+  → audio_processing
+  → audio_done
+  → transcription_queued
+  → transcribing
+  → transcribed
+  → analysis_queued
+  → analyzing
+  → done
+```
 
-## MySQL
+目标状态与任务系统会在后续阶段逐步落地。本文明确区分当前字段和后续扩展方向。
 
-负责持久化业务数据：
+## 2. 存储职责
 
-- 创作者信息
-- 视频元数据
-- 处理状态
-- 转写结果
-- AI 分析结果
-- 错误信息
+### MySQL
 
-## Redis
+负责持久化：
 
-负责运行时任务：
+- 创作者稳定身份；
+- 视频和提供方 metadata；
+- 处理状态；
+- 任务执行历史；
+- 转写文本和时间戳；
+- AI 分析结果；
+- 错误、重试和版本信息。
 
-- 视频处理队列
-- Worker 消费
-- 临时锁
-- 重试计数
+### Redis
 
-## Local File Storage
+负责运行时能力：
 
-负责保存文件：
+- ready queue；
+- processing queue；
+- Worker 锁；
+- 短期心跳或租约；
+- 延迟重试和死信投递。
 
-- 原始视频
-- 提取后的音频
-- 可选中间文件
+Redis 不作为业务结果的唯一存储。
 
----
+### 本地文件系统
 
-# 4. 核心数据表
+负责保存：
 
-## 4.1 creators
+- 外部服务交付的原始视频；
+- 同名 metadata JSON；
+- FFmpeg 提取后的 WAV；
+- 后续可能产生的字幕或可重建中间文件。
 
-记录创作者信息。
+## 3. 创作者身份
 
-关键字段：
+### 3.1 权威身份字段
 
-| 字段 | 说明 |
-| --- | --- |
-| id | 内部主键 |
-| platform | 平台，例如 douyin |
-| author_id | 采集侧提供的博主 ID |
-| creator_name | 创作者名称，可为空 |
-| source_dir | 本地博主目录 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+EchoLens 使用：
+
+```text
+author.sec_uid
+```
+
+作为抖音创作者稳定标识。
+
+数据库映射：
+
+```text
+creators.sec_uid          <- author.sec_uid
+creators.platform_uid     <- author.uid
+creators.provider_author_id <- 顶层 author_id
+creators.creator_name     <- author.nickname
+```
 
 唯一约束：
 
 ```text
-platform + author_id
+platform + sec_uid
 ```
 
----
+以下字段不参与创作者去重：
+
+- 昵称；
+- 本地目录名；
+- `author.uid`；
+- 顶层 `author_id`。
+
+缺少 `author.sec_uid` 的 metadata 不允许入库。
+
+## 4. 核心表
+
+## 4.1 creators
+
+记录创作者当前身份和来源信息。
+
+| 字段 | 类型/含义 |
+| --- | --- |
+| `id` | EchoLens 内部主键 |
+| `platform` | 平台，例如 `douyin` |
+| `sec_uid` | 稳定创作者标识 |
+| `platform_uid` | 提供方 `author.uid`，辅助字段 |
+| `provider_author_id` | 顶层 `author_id`，辅助字段 |
+| `creator_name` | 当前昵称，可变化 |
+| `source_dir` | 最近一次扫描到的本地目录 |
+| `created_at` | 创建时间 |
+| `updated_at` | 更新时间 |
+
+唯一索引：
+
+```text
+uq_creators_platform_sec_uid(platform, sec_uid)
+```
+
+辅助索引：
+
+```text
+(platform, platform_uid)
+(platform, provider_author_id)
+```
 
 ## 4.2 videos
 
-记录视频元数据和处理状态。
+记录视频身份、文件位置、提供方 metadata 和总流程状态。
 
-关键字段：
-
-| 字段 | 说明 |
+| 字段 | 类型/含义 |
 | --- | --- |
-| id | 内部主键 |
-| platform | 平台，例如 douyin |
-| author_id | 创作者 ID |
-| video_id | 视频 ID |
-| creator_id | creators.id |
-| type | 内容类型，默认 video |
-| description | 视频描述 |
-| create_time | 平台发布时间 |
-| source_path | EchoLens 扫描到的本地视频路径 |
-| metadata_path | 同名 .mp4.json 路径 |
-| file_name | 文件名 |
-| file_size | 文件大小 |
-| file_mtime | 文件修改时间 |
-| downloaded_at | 下载完成时间 |
-| status | 视频处理状态 |
-| error_message | 错误信息 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
-| processed_at | 处理完成时间 |
+| `id` | EchoLens 内部主键 |
+| `platform` | 平台 |
+| `creator_sec_uid` | 创作者稳定标识 |
+| `provider_author_id` | 顶层 `author_id` |
+| `author_uid` | `author.uid` |
+| `video_id` | 平台视频标识 |
+| `creator_id` | `creators.id` |
+| `file_path` | EchoLens 实际扫描到的视频路径 |
+| `metadata_path` | 同名 sidecar JSON 路径 |
+| `file_name` | 实际视频文件名 |
+| `file_size` | 实际文件大小 |
+| `file_mtime` | 实际文件 mtime |
+| `description` | 提供方 `desc` |
+| `source_create_time` | 提供方 `create_time` 原值 |
+| `downloaded_at` | 提供方下载时间原值 |
+| `statistics_json` | 互动统计快照 |
+| `metadata_json` | 完整 metadata JSON 快照 |
+| `status` | 当前处理状态 |
+| `audio_path` | WAV 路径 |
+| `audio_size` | WAV 大小 |
+| `audio_created_at` | 音频完成时间 |
+| `error_message` | 当前错误摘要 |
+| `created_at` | 创建时间 |
+| `updated_at` | 更新时间 |
+| `processed_at` | 现阶段兼容字段，当前在音频完成时写入 |
 
-核心去重约束：
+视频唯一约束：
 
 ```text
-platform + author_id + video_id
+platform + creator_sec_uid + video_id
 ```
 
-说明：
+索引：
 
-- `source_path` 以 EchoLens 实际扫描到的 Windows 本地路径为准。
-- `.mp4.json` 中的 `file_path` 可能是采集服务内部路径，不作为 EchoLens 本地路径依据。
+```text
+uq_videos_platform_creator_video(platform, creator_sec_uid, video_id)
+idx_videos_creator_id(creator_id)
+idx_videos_provider_author(platform, provider_author_id)
+idx_videos_status(status)
+```
 
----
+路径规则：
+
+- `file_path` 以 Scanner 实际发现路径为准；
+- metadata 中 `/app/download/...` 一类容器路径不作为本地路径；
+- Worker 可以根据配置把历史 Windows 路径映射到 Docker 挂载目录。
+
+### processed_at 的后续处理
+
+`processed_at` 当前由音频阶段写入，语义不够准确。完整链路实现时应迁移为明确字段：
+
+```text
+transcribed_at
+analyzed_at
+completed_at
+```
+
+在迁移完成前不得把 `processed_at` 解释为整个知识处理链路已经完成。
 
 ## 4.3 processing_jobs
 
-记录任务执行过程。
+记录每个处理阶段的执行历史。
 
-关键字段：
+当前表已存在，但音频 Worker 尚未完整接入。
 
-| 字段 | 说明 |
+当前字段：
+
+| 字段 | 含义 |
 | --- | --- |
-| id | 内部主键 |
-| video_db_id | videos.id |
-| job_type | 任务类型 |
-| status | 任务状态 |
-| retry_count | 重试次数 |
-| started_at | 开始时间 |
-| finished_at | 结束时间 |
-| error_message | 错误信息 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+| `id` | 主键 |
+| `video_id` | `videos.id` |
+| `job_type` | 任务类型 |
+| `status` | 执行状态 |
+| `retry_count` | 重试次数 |
+| `started_at` | 开始时间 |
+| `finished_at` | 结束时间 |
+| `error_message` | 错误信息 |
+| `created_at` | 创建时间 |
+| `updated_at` | 更新时间 |
 
-任务类型：
+目标任务类型：
 
 ```text
 extract_audio
@@ -164,227 +232,200 @@ transcribe_audio
 analyze_text
 ```
 
----
+完整任务系统还需要增加或明确：
+
+```text
+attempt
+max_attempts
+reserved_at
+heartbeat_at
+available_at
+worker_id
+error_type
+result_version
+```
+
+这些字段将在任务系统重构时通过独立迁移加入，不在创作者身份迁移中提前修改。
 
 ## 4.4 transcripts
 
 记录语音转写结果。
 
-关键字段：
+当前字段：
 
-| 字段 | 说明 |
+| 字段 | 含义 |
 | --- | --- |
-| id | 内部主键 |
-| video_db_id | videos.id |
-| language | 识别语言 |
-| model_name | 转写模型 |
-| text | 完整转写文本 |
-| segments_json | 带时间戳的分段结果 |
-| audio_path | 提取后的音频路径 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+| `video_id` | 视频 |
+| `transcript_text` | 完整文本 |
+| `segments_json` | 时间戳分段 |
+| `language` | 检测语言 |
+| `model_name` | 模型名称 |
+| `created_at` | 创建时间 |
+| `updated_at` | 更新时间 |
 
-约束：
+当前唯一约束为一个视频一份转写：
 
 ```text
-一个视频默认只保留一份当前转写结果
+UNIQUE(video_id)
 ```
 
----
+完整系统需要支持重新转写和历史版本，因此后续应演进为：
+
+```text
+video_id + version
+is_current
+model_provider
+model_revision
+compute_type
+transcription_config_json
+```
+
+该版本化改造将在 Faster-Whisper 阶段设计并迁移。
 
 ## 4.5 analyses
 
-记录 AI 分析结果。
+记录 AI 内容理解结果。
 
-关键字段：
-
-| 字段 | 说明 |
-| --- | --- |
-| id | 内部主键 |
-| video_db_id | videos.id |
-| transcript_id | transcripts.id |
-| model_provider | 模型服务商 |
-| model_name | 模型名称 |
-| summary | 内容摘要 |
-| tags_json | 标签数组 |
-| key_points_json | 关键观点数组 |
-| raw_result_json | 模型原始结构化结果 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
-
----
-
-# 5. 视频状态设计
-
-`videos.status` 使用以下状态：
+当前字段：
 
 ```text
-pending
-queued
-processing
-done
-failed
-skipped
+video_id
+summary
+tags_json
+key_points_json
+model_name
+created_at
+updated_at
 ```
 
-状态含义：
+完整系统后续需要支持：
 
-| 状态 | 含义 |
-| --- | --- |
-| pending | 已发现，尚未入队 |
-| queued | 已推入 Redis 队列 |
-| processing | Worker 正在处理 |
-| done | 处理完成 |
-| failed | 处理失败 |
-| skipped | 主动跳过 |
+- 分析版本；
+- Prompt 版本；
+- 模型提供商和模型版本；
+- 结构化观点；
+- 主题和标签规范化；
+- 重新分析时保留历史结果。
 
-正常流转：
+在转写阶段稳定之前不提前扩展复杂知识图谱或推荐字段。
+
+## 5. metadata 保存策略
+
+数据库同时保存规范化字段和完整 metadata JSON。
+
+规范化字段用于：
+
+- 去重；
+- 查询；
+- 索引；
+- 任务调度。
+
+`metadata_json` 用于：
+
+- 审计提供方输出；
+- 保留未知扩展字段；
+- 后续补录作者和统计信息；
+- 协议升级；
+- 排查字段语义变化。
+
+`statistics_json` 是便于独立读取的互动统计快照。统计值只按提供方原值保存，不推断 `0` 或缺失的业务含义。
+
+## 6. 当前入库流程
 
 ```text
-pending → queued → processing → done
-```
-
-失败流转：
-
-```text
-processing → failed
-```
-
----
-
-# 6. Redis 队列设计
-
-## 6.1 队列命名
-
-```text
-echolens:queue:video
-```
-
-用于待处理视频任务。
-
-## 6.2 任务内容
-
-任务中至少包含：
-
-```json
-{
-  "video_db_id": 1,
-  "platform": "douyin",
-  "author_id": "123456",
-  "video_id": "738xxxx",
-  "source_path": "D:\\BaiduNetdiskDownload\\dy src\\123456\\douyin.wtf_douyin_738xxxx.mp4",
-  "metadata_path": "D:\\BaiduNetdiskDownload\\dy src\\123456\\douyin.wtf_douyin_738xxxx.mp4.json"
-}
-```
-
----
-
-# 7. Redis 锁设计
-
-为避免多个 Worker 重复处理同一个视频，使用视频级锁：
-
-```text
-echolens:lock:video:{video_db_id}
-```
-
-建议：
-
-- 获取锁成功才处理
-- 处理完成后释放锁
-- 锁必须设置过期时间，避免 Worker 异常退出后永久占用
-
----
-
-# 8. Scanner 写入流程
-
-```text
-扫描 .mp4
-    ↓
-读取 .mp4.json
-    ↓
-校验 platform / author_id / video_id
-    ↓
-检查文件稳定性
-    ↓
-upsert creators
-    ↓
-insert videos
-    ↓
-成功插入新 video 后推送 Redis
-    ↓
+Scanner 发现合法视频
+        ↓
+解析 author.sec_uid
+        ↓
+ensure_creator(platform, sec_uid)
+        ↓
+检查 platform + sec_uid + video_id
+        ↓
+写入 videos（pending）
+        ↓
+推送 Redis
+        ↓
 更新 videos.status = queued
 ```
 
-规则：
+当前 MySQL 与 Redis 不是分布式原子事务。完整任务系统需要增加 reconciliation/outbox 能力，避免数据库与队列状态永久不一致。
 
-- 如果 `platform + author_id + video_id` 已存在，不重复入队。
-- 如果 Redis 推送失败，保留 `pending` 状态，后续可以重新入队。
+## 7. 旧数据迁移
 
----
-
-# 9. Worker 处理流程
+已有数据库先执行：
 
 ```text
-从 Redis 获取任务
-    ↓
-获取视频锁
-    ↓
-更新 videos.status = processing
-    ↓
-记录 processing_jobs
-    ↓
-FFmpeg 提取音频
-    ↓
-Faster-Whisper 转写
-    ↓
-写入 transcripts
-    ↓
-LLM 分析
-    ↓
-写入 analyses
-    ↓
-更新 videos.status = done
+scripts/mysql_creator_identity_migration.sql
 ```
 
-失败处理：
+迁移动作：
+
+1. `creators.author_id` 重命名为 `provider_author_id`；
+2. `videos.author_id` 重命名为 `provider_author_id`；
+3. 增加 `creators.sec_uid` 和 `platform_uid`；
+4. 增加 `videos.creator_sec_uid` 和 `author_uid`；
+5. 增加 `statistics_json` 和 `metadata_json`；
+6. 唯一索引切换到 `sec_uid`。
+
+为避免破坏已有 8 条记录，迁移脚本不会伪造 sec_uid。
+
+执行迁移后运行：
+
+```powershell
+echolens scan --enqueue
+```
+
+Repository 会：
+
+- 根据顶层 `provider_author_id` 将旧 creator 行回填到真实 `sec_uid`；
+- 根据同一 `creator_id + video_id` 回填旧 video 行；
+- 更新辅助身份和 metadata；
+- 把旧视频视为已存在；
+- 不重新推送已经存在的视频任务。
+
+回填完成后应检查：
+
+```sql
+SELECT COUNT(*) FROM creators WHERE sec_uid IS NULL;
+SELECT COUNT(*) FROM videos WHERE creator_sec_uid IS NULL;
+```
+
+两项都应为 `0`。如果仍存在空值，说明对应 sidecar 缺失、协议不合法，或旧记录无法与当前提供方身份安全匹配，需要人工处理，不能自动猜测。
+
+## 8. 当前状态流
+
+当前代码使用：
 
 ```text
-记录 error_message
-    ↓
-增加 retry_count
-    ↓
-更新状态为 failed
+pending → queued → processing → audio_done
 ```
 
----
+失败时当前 Worker 会回到：
 
-# 10. 查询能力
+```text
+processing → queued
+```
 
-MVP 阶段先支持：
+并保留 `error_message`。
 
-- 按创作者查询视频
-- 按关键词搜索 transcript
-- 按标签查询 analysis
-- 查看失败任务
+该机制尚缺少：
 
-后续扩展：
+- 最大重试次数；
+- 延迟重试；
+- 死信任务；
+- processing 队列超时恢复；
+- 心跳和租约；
+- `processing_jobs` 执行记录。
 
-- Embedding
-- 向量检索
-- AI 问答
-- 趋势分析
+这些是进入完整转写链路前的任务系统重构内容。
 
----
+## 9. 下一阶段数据库工作
 
-# 11. MVP 验收标准
+完成创作者身份迁移后，下一阶段按顺序处理：
 
-数据库与任务流满足：
-
-1. 能保存创作者信息
-2. 能保存视频元数据
-3. 能用 `platform + author_id + video_id` 去重
-4. 能把新视频推入 Redis 队列
-5. 能记录处理状态
-6. 能保存转写文本
-7. 能保存 AI 分析结果
-8. 能记录失败原因并支持后续重试
+1. 将 `processing_jobs` 接入音频 Worker；
+2. 设计任务租约、重试和死信；
+3. 将音频、转写和分析拆成独立阶段任务；
+4. 版本化 transcripts；
+5. 实现 `audio_done → transcribing → transcribed`；
+6. 转写稳定后再设计 analyses 的正式版本模型。

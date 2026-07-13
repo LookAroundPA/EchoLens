@@ -33,11 +33,11 @@ class LocalIngestService:
             repository = VideoRepository(connection)
 
             for item in items:
-                if repository.video_exists(item):
+                creator_db_id = repository.ensure_creator(item)
+                if repository.video_exists(item, creator_db_id):
                     skipped_existing += 1
                     continue
 
-                creator_db_id = repository.ensure_creator(item)
                 video_db_id = repository.insert_pending_video(item, creator_db_id)
                 inserted += 1
 
