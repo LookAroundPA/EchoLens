@@ -40,7 +40,7 @@ class AudioWorker:
             self.queue.retry(raw_payload)
             raise
 
-    def process_video(self, video_db_id: int) -> WorkerResult:
+    def process_video(self, video_db_id: int, *, force: bool = False) -> WorkerResult:
         """Extract audio for one specific video already in queued status."""
 
         try:
@@ -53,6 +53,8 @@ class AudioWorker:
 
                 source_path = resolve_source_path(str(video["file_path"]), self.settings)
                 audio_path = output_path_for(video, self.settings)
+                if force:
+                    audio_path.unlink(missing_ok=True)
                 audio_size = extract_wav(source_path, audio_path)
                 repository.mark_audio_done(video_db_id, str(audio_path), audio_size)
                 connection.commit()
