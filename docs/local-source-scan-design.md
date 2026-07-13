@@ -1,368 +1,287 @@
-# EchoLens 本地视频目录扫描设计
+# EchoLens 本地内容源扫描设计
 
-## 1. 背景
+## 1. 背景与边界
 
-MVP 阶段，抖音视频采集由外部服务负责。
+抖音视频采集由外部服务负责。EchoLens 不直接访问抖音平台，不维护采集服务，也不把自身定位为下载器。
 
-EchoLens 不直接调用抖音平台，只扫描部署机上的本地视频目录。
+本地扫描只是内容进入 EchoLens 的入口。后续核心价值来自音频处理、语音转写、内容理解和长期知识沉淀。
 
-根目录：
+默认输入根目录：
 
 ```text
 D:\BaiduNetdiskDownload\dy src
 ```
 
-目录约定：
+正式字段协议见：
+
+```text
+docs/integrations/local-source-provider-protocol.md
+```
+
+## 2. 输入目录约定
 
 ```text
 D:\BaiduNetdiskDownload\dy src\
-├── 博主A\
-│   ├── douyin.wtf_douyin_738xxxx.mp4
-│   └── douyin.wtf_douyin_738xxxx.mp4.json
-│
-└── 博主B\
+├── 提供方作者目录A\
+│   ├── douyin.wtf_douyin_7103469551442038030.mp4
+│   └── douyin.wtf_douyin_7103469551442038030.mp4.json
+└── 提供方作者目录B\
     ├── douyin.wtf_douyin_740xxxx.mp4
     └── douyin.wtf_douyin_740xxxx.mp4.json
 ```
 
-每个视频文件旁边必须有一个同名元数据文件：
+每个视频必须存在同名 sidecar metadata：
 
 ```text
-<video_file>.json
+<video_file>.mp4.json
 ```
 
-示例：
+## 3. 路径权威性
+
+metadata 内的 `file_path` 可能是外部采集服务的容器路径，例如：
 
 ```text
-douyin.wtf_douyin_738xxxx.mp4
-douyin.wtf_douyin_738xxxx.mp4.json
+/app/download/作者目录/video.mp4
 ```
 
----
+EchoLens 不使用该字段定位本地文件。
 
-# 2. 设计目标
+路径优先级：
 
-扫描模块负责：
+1. Scanner 实际发现的 `.mp4` 路径；
+2. 数据库中保存的实际扫描路径；
+3. Docker Worker 根据配置把历史 Windows 路径映射到运行时挂载目录。
 
-- 发现本地新增视频
-- 读取同名 `.mp4.json` 元数据文件
-- 识别创作者与视频唯一 ID
-- 避免重复处理
-- 避免处理下载中的文件
-- 将任务写入 Redis 队列
-- 将状态写入 MySQL
+## 4. 创作者身份规范化
 
----
-
-# 3. 元数据文件协议
-
-每个视频对应一个同名 JSON 元数据文件。
-
-示例：
-
-```json
-{
-  "video_id": "738xxxx",
-  "author_id": "author_xxx",
-  "platform": "douyin",
-  "type": "video",
-  "desc": "视频描述",
-  "create_time": 1234567890,
-  "with_watermark": false,
-  "file_name": "douyin.wtf_douyin_738xxxx.mp4",
-  "file_path": "/app/download/博主ID/douyin.wtf_douyin_738xxxx.mp4",
-  "file_size": 12345678,
-  "file_mtime": 1234567890.123,
-  "downloaded_at": "2026-07-10T12:00:00"
-}
-```
-
-## 必需字段
+外部 metadata 可能同时包含：
 
 ```text
-video_id
-author_id
-platform
-type
-file_name
-file_size
-file_mtime
-downloaded_at
+顶层 author_id
+author.uid
+author.nickname
+author.sec_uid
 ```
 
-## 可选字段
+EchoLens 的稳定创作者标识只能使用：
 
 ```text
-desc
-create_time
-with_watermark
-file_path
+author.sec_uid
 ```
 
-注意：
-
-`file_path` 可能是采集服务容器内路径，不一定等于 EchoLens 在 Windows 部署机上看到的真实路径。
-
-EchoLens 应以扫描到的本地 `.mp4` 路径作为最终 `source_path`。
-
----
-
-# 4. 去重策略
-
-## 4.1 主去重键
-
-MVP 阶段主去重键：
+字段映射：
 
 ```text
-platform + author_id + video_id
+creator_sec_uid    <- author.sec_uid
+provider_author_id <- 顶层 author_id
+author_uid         <- author.uid
+creator_name       <- author.nickname
 ```
 
-原因：
+规则：
 
-- `video_id` 表示平台内视频唯一标识
-- `author_id` 表示创作者来源
-- `platform` 保留未来多平台扩展空间
+- `author.sec_uid` 必须存在且为非空字符串；
+- 缺失时跳过文件并记录 `metadata_protocol_error`；
+- 不允许回退到 `author.uid`；
+- 不允许回退到顶层 `author_id`；
+- 昵称和目录名称不参与身份判断。
 
-## 4.2 辅助指纹
+## 5. 去重策略
+
+### 5.1 创作者唯一键
+
+```text
+platform + creator_sec_uid
+```
+
+### 5.2 视频唯一键
+
+```text
+platform + creator_sec_uid + video_id
+```
 
 辅助字段：
 
 ```text
+provider_author_id
+author_uid
 source_path
+metadata_path
 file_name
 file_size
 file_mtime
 ```
 
-用途：
+辅助字段用于追踪数据来源、迁移和排障，不作为主去重键。
 
-- 排查文件变更
-- 处理异常元数据
-- 辅助定位本地文件
-
-不建议 MVP 阶段默认计算完整文件 hash，因为视频文件较大，成本高。
-
----
-
-# 5. 扫描策略
-
-## 5.1 mtime 快速过滤
-
-使用 `.mp4` 文件修改时间作为扫描加速手段。
-
-```text
-mtime > last_scan_time - buffer
-```
-
-注意：
-
-mtime 只用于减少扫描范围，不作为最终去重依据。
-
-## 5.2 JSON 元数据优先
-
-扫描到 `.mp4` 后，优先读取：
-
-```text
-<video_file>.json
-```
-
-如果元数据存在且合法，则使用其中的：
-
-```text
-video_id
-author_id
-platform
-create_time
-desc
-file_size
-file_mtime
-downloaded_at
-```
-
-如果元数据缺失或解析失败，本轮跳过该视频，并记录错误。
-
-MVP 不再依赖从文件名解析 `video_id` 作为主路径。
-
----
-
-# 6. 文件稳定性检查
-
-为避免处理正在下载的视频，需要做稳定性检查。
-
-推荐规则：
-
-1. `.mp4` 文件必须存在。
-2. `.mp4.json` 文件必须存在。
-3. 文件最近修改时间距离当前时间小于 30 秒，跳过。
-4. 可选：间隔数秒检查文件大小是否变化。
-5. 文件和元数据都稳定后再加入处理队列。
-
----
-
-# 7. MySQL 表设计草案
-
-## creators
-
-```text
-id
-platform
-author_id
-creator_name
-source_dir
-created_at
-updated_at
-```
-
-建议：
-
-```text
-unique(platform, author_id)
-```
-
-## videos
-
-```text
-id
-platform
-video_id
-author_id
-creator_id
-source_path
-file_name
-file_size
-file_mtime
-desc
-create_time
-downloaded_at
-status
-created_at
-updated_at
-processed_at
-error_message
-```
-
-建议：
-
-```text
-unique(platform, author_id, video_id)
-```
-
----
-
-# 8. Redis 队列设计
-
-推荐队列：
-
-```text
-echolens:queue:video
-```
-
-任务内容：
-
-```json
-{
-  "video_id": "738xxxx",
-  "author_id": "author_xxx",
-  "platform": "douyin",
-  "creator_id": 1,
-  "video_db_id": 1001,
-  "source_path": "D:\\BaiduNetdiskDownload\\dy src\\博主A\\douyin.wtf_douyin_738xxxx.mp4"
-}
-```
-
----
-
-# 9. 状态设计
-
-视频处理状态：
-
-```text
-pending
-queued
-processing
-done
-failed
-skipped
-```
-
-含义：
-
-- pending：已发现，等待入队
-- queued：已推入 Redis 队列
-- processing：处理中
-- done：处理完成
-- failed：处理失败
-- skipped：跳过
-
----
-
-# 10. 扫描流程
+## 6. 扫描流程
 
 ```text
 读取 DOUYIN_SOURCE_DIR
         ↓
-遍历博主子目录
+递归发现 .mp4
         ↓
-递归查找 .mp4 文件
+检查视频稳定时间
         ↓
-mtime 快速过滤
+定位同名 .mp4.json
         ↓
-检查 .mp4.json 是否存在
+读取并解析 JSON
         ↓
-读取并校验元数据
+使用 Pydantic 校验提供方协议
         ↓
-文件稳定性检查
+要求 author.sec_uid 非空
         ↓
-用 platform + author_id + video_id 查询 MySQL
+规范化 LocalVideoItem
         ↓
-不存在则插入 creators / videos
+dry-run 输出结果与问题
         ↓
-推送 Redis 队列
-        ↓
-更新 videos.status = queued
+可选：写入 MySQL 并推送 Redis
 ```
 
----
+Scanner 始终以实际文件状态覆盖 metadata 中的以下字段：
 
-# 11. 失败处理
+```text
+source_path
+file_name
+file_size
+file_mtime
+```
 
-如果 `.mp4.json` 缺失：
+这样可以避免依赖采集服务容器路径或陈旧的文件属性。
 
-- 本轮跳过
-- 记录 `metadata_missing`
-- 下轮继续扫描
+## 7. 文件稳定性
 
-如果 `.mp4.json` 解析失败：
+为避免处理仍在写入的视频，当前使用：
 
-- 本轮跳过
-- 记录 `metadata_parse_failed`
+```text
+当前时间 - 视频 mtime >= SCAN_STABILITY_SECONDS
+```
 
-如果必需字段缺失：
+默认稳定时间为 30 秒。
 
-- 本轮跳过
-- 记录 `metadata_invalid`
+当前实现不依赖提供方的原子写入保证。缺失 sidecar 或暂时不稳定的文件会在后续扫描中重新检查。
 
-如果文件正在下载：
+后续可增加：
 
-- 本轮跳过
-- 下轮继续扫描
+- 视频与 metadata 双文件稳定性检查；
+- 间隔采样文件大小；
+- 提供方完成标记；
+- 文件系统事件监听作为轮询补充。
 
-如果 Redis 推送失败：
+## 8. 协议错误记录
 
-- MySQL 保持 pending
-- 后续可重新推送
+Scanner 不再静默丢弃错误文件，而是产生结构化 `ScanIssue`：
 
----
+```text
+code
+message
+video_path
+metadata_path
+```
 
-# 12. MVP 验收标准
+当前错误码：
 
-扫描模块满足：
+| 错误码 | 含义 |
+| --- | --- |
+| `metadata_missing` | 缺少 sidecar metadata |
+| `metadata_read_failed` | metadata 无法读取 |
+| `metadata_parse_failed` | JSON 解析失败 |
+| `metadata_protocol_error` | 字段不符合提供方协议 |
 
-1. 能扫描固定根目录下的博主子目录
-2. 能发现 `.mp4` 文件
-3. 能读取同名 `.mp4.json` 元数据
-4. 能用 `platform + author_id + video_id` 去重
-5. 能将新增视频写入 MySQL
-6. 能将处理任务推入 Redis
-7. 能避免重复入队
-8. 能跳过正在下载或元数据不完整的文件
+`echolens scan` 会输出：
+
+```text
+Discovered valid video items: N
+Skipped source items: M
+```
+
+并逐条打印问题。协议错误不写入 MySQL，也不进入 Redis 队列。
+
+## 9. 元数据保留
+
+规范化对象保存：
+
+```text
+creator_sec_uid
+provider_author_id
+author_uid
+creator_name
+video_id
+desc
+create_time
+downloaded_at
+statistics
+raw_metadata
+```
+
+写入数据库时保存：
+
+- 身份规范化字段；
+- `statistics_json`；
+- 完整 `metadata_json` 快照。
+
+保留原始快照用于：
+
+- 审计数据提供方输出；
+- 后续补充新字段；
+- 协议升级；
+- 排查身份变化和统计数据异常。
+
+## 10. MySQL 写入与旧数据迁移
+
+新数据库直接使用 `scripts/mysql_schema.sql`。
+
+已有数据库需要先执行：
+
+```text
+scripts/mysql_creator_identity_migration.sql
+```
+
+迁移脚本会：
+
+1. 把旧 `author_id` 重命名为 `provider_author_id`；
+2. 增加 `sec_uid`、`creator_sec_uid` 和 `author_uid`；
+3. 把唯一约束切换到 `sec_uid`；
+4. 增加 statistics 和完整 metadata JSON 字段。
+
+迁移后旧记录的 `sec_uid` 暂时为空。下一次执行：
+
+```powershell
+echolens scan --enqueue
+```
+
+Repository 会根据 sidecar metadata 回填旧 creator/video 记录。已存在的视频只更新身份字段，不重新入队。
+
+## 11. Redis 任务内容
+
+新任务至少包含：
+
+```json
+{
+  "video_db_id": 1,
+  "creator_db_id": 1,
+  "platform": "douyin",
+  "creator_sec_uid": "MS4wLjAB...",
+  "provider_author_id": "昵称_数字UID",
+  "video_id": "7103469551442038030",
+  "source_path": "D:\\BaiduNetdiskDownload\\dy src\\...mp4",
+  "metadata_path": "D:\\BaiduNetdiskDownload\\dy src\\...mp4.json"
+}
+```
+
+Worker 的权威输入仍是 `video_db_id` 对应的 MySQL 记录，Redis payload 中的其他字段主要用于诊断。
+
+## 12. 当前验收标准
+
+扫描模块必须满足：
+
+1. 能递归发现 `.mp4`；
+2. 能读取同名 `.mp4.json`；
+3. 能接受提供方额外字段；
+4. 能从 `author.sec_uid` 取得稳定创作者身份；
+5. 缺少 `author.sec_uid` 时跳过并记录协议错误；
+6. 能以实际扫描路径覆盖 metadata 容器路径；
+7. 能用 `platform + sec_uid + video_id` 去重；
+8. 能安全回填旧数据库身份字段；
+9. dry-run 不写数据库和 Redis；
+10. `--enqueue` 只为新增视频创建任务。
