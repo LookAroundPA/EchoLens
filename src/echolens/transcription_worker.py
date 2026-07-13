@@ -1,4 +1,4 @@
-"""Minimal database-driven worker for Faster-Whisper transcription."""
+"""Database-driven worker for Faster-Whisper transcription."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,11 +32,23 @@ class TranscriptionWorker:
         self.transcriber = transcriber or FasterWhisperTranscriber(self.settings)
 
     def process_one(self) -> TranscriptionWorkerResult:
-        """Claim and transcribe at most one audio-complete video."""
+        """Claim and transcribe the next audio-complete video."""
 
+        return self._claim_and_process(video_db_id=None)
+
+    def process_video(self, video_db_id: int) -> TranscriptionWorkerResult:
+        """Claim and transcribe one specific audio-complete video."""
+
+        return self._claim_and_process(video_db_id=video_db_id)
+
+    def _claim_and_process(self, video_db_id: int | None) -> TranscriptionWorkerResult:
         with mysql_connection(self.settings) as connection:
             repository = TranscriptRepository(connection)
-            video = repository.claim_next_video()
+            video = (
+                repository.claim_next_video()
+                if video_db_id is None
+                else repository.claim_video(video_db_id)
+            )
             connection.commit()
 
         if video is None:
@@ -44,29 +56,30 @@ class TranscriptionWorker:
                 handled=False,
                 completed=False,
                 failed=False,
+                video_db_id=video_db_id,
             )
 
-        video_db_id = int(video["id"])
+        claimed_id = int(video["id"])
         try:
             result = self.transcriber.transcribe(Path(str(video["audio_path"])))
             with mysql_connection(self.settings) as connection:
-                TranscriptRepository(connection).save_result(video_db_id, result)
+                TranscriptRepository(connection).save_result(claimed_id, result)
                 connection.commit()
             return TranscriptionWorkerResult(
                 handled=True,
                 completed=True,
                 failed=False,
-                video_db_id=video_db_id,
+                video_db_id=claimed_id,
             )
         except Exception as exc:
             error_message = str(exc)
             with mysql_connection(self.settings) as connection:
-                TranscriptRepository(connection).mark_failed(video_db_id, error_message)
+                TranscriptRepository(connection).mark_failed(claimed_id, error_message)
                 connection.commit()
             return TranscriptionWorkerResult(
                 handled=True,
                 completed=False,
                 failed=True,
-                video_db_id=video_db_id,
+                video_db_id=claimed_id,
                 error_message=error_message,
             )
