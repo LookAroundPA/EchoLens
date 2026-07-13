@@ -2,6 +2,32 @@
 
 React + TypeScript 前端，直接连接 EchoLens FastAPI。
 
+前端不需要安装或运行 Nginx。Docker 镜像只使用 Node.js，并通过 Vite Preview 提供已经构建好的页面。
+
+## Docker 启动
+
+在仓库根目录运行：
+
+```powershell
+docker compose up --build api frontend
+```
+
+访问：
+
+```text
+前端：http://localhost:3000
+API：http://localhost:8000
+API 文档：http://localhost:8000/docs
+```
+
+浏览器会从 `http://localhost:3000` 直接请求 `http://localhost:8000`。前端镜像构建参数默认为：
+
+```text
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+需要使用其他 API 地址时，在项目 `.env` 中修改该值并重新构建前端镜像。
+
 ## 本地开发
 
 先启动后端 API：
@@ -24,23 +50,7 @@ npm run dev
 http://localhost:5173
 ```
 
-Vite 会把 `/api` 和 `/health` 代理到 `http://localhost:8000`。
-
-## Docker 联调
-
-在仓库根目录运行：
-
-```powershell
-docker compose up --build api frontend
-```
-
-访问：
-
-```text
-http://localhost:3000
-```
-
-Nginx 会把浏览器的 `/api/*` 请求转发到 Compose 中的 `api:8000`。
+开发模式下，Vite 会把 `/api` 和 `/health` 代理到 `http://localhost:8000`。
 
 ## 已实现页面
 
