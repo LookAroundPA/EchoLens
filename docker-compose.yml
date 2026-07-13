@@ -45,5 +45,15 @@ services:
       - "8000:8000"
     command: ["api", "--host", "0.0.0.0", "--port", "8000"]
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: echolens-frontend:local
+    depends_on:
+      - api
+    ports:
+      - "3000:80"
+
 volumes:
   echolens_model_cache:
