@@ -5,6 +5,7 @@ import typer
 from echolens.collector.local_ingest import LocalIngestService
 from echolens.collector.local_scanner import LocalSourceScanner
 from echolens.core.config import get_settings
+from echolens.transcription_worker import TranscriptionWorker
 from echolens.worker import AudioWorker
 
 app = typer.Typer(help="EchoLens command line tools.")
@@ -75,6 +76,45 @@ def worker(
         skipped += int(result.skipped)
 
     typer.echo(f"Worker result: processed={processed} completed={completed} skipped={skipped}")
+
+
+@app.command()
+def transcribe(
+    once: bool = typer.Option(default=False, help="Transcribe at most one audio file and exit."),
+    max_tasks: int | None = typer.Option(default=None, min=1, help="Maximum audio files to transcribe."),
+) -> None:
+    """Transcribe audio_done videos with Faster-Whisper."""
+
+    if once and max_tasks is not None:
+        raise typer.BadParameter("Use either --once or --max-tasks, not both.")
+
+    settings = get_settings()
+    typer.echo(
+        "Transcription model: "
+        f"{settings.whisper_model} device={settings.whisper_device} "
+        f"compute_type={settings.whisper_compute_type}"
+    )
+
+    limit = 1 if once else max_tasks
+    processed = completed = failed = 0
+    service = TranscriptionWorker(settings=settings)
+    while limit is None or processed < limit:
+        result = service.process_one()
+        if not result.handled:
+            break
+        processed += 1
+        completed += int(result.completed)
+        failed += int(result.failed)
+        if result.failed:
+            typer.echo(
+                f"! transcription_failed video_db_id={result.video_db_id} "
+                f"message={result.error_message}",
+                err=True,
+            )
+
+    typer.echo(
+        f"Transcription result: processed={processed} completed={completed} failed={failed}"
+    )
 
 
 @app.command()
