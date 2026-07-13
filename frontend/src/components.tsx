@@ -1,6 +1,7 @@
+import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { formatDate } from './api'
+import { api, formatDate } from './api'
 import type { JobStatus, TagCount, VideoStatus, VideoSummary } from './types'
 
 const navItems = [
@@ -12,6 +13,15 @@ const navItems = [
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const health = useQuery({
+    queryKey: ['health'],
+    queryFn: api.health,
+    retry: false,
+    refetchInterval: 10_000,
+  })
+  const healthState = health.isLoading ? 'checking' : health.isSuccess ? 'online' : 'offline'
+  const healthLabel = healthState === 'checking' ? '正在检查 API' : healthState === 'online' ? 'API 已连接' : 'API 未连接'
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -35,10 +45,15 @@ export function AppShell({ children }: { children: ReactNode }) {
             </NavLink>
           ))}
         </nav>
-        <div className="sidebar-note">
+        <button
+          type="button"
+          className={`sidebar-note api-state api-state--${healthState}`}
+          onClick={() => health.refetch()}
+          title={health.isError ? '点击重新检查 API' : '点击刷新连接状态'}
+        >
           <span className="live-dot" />
-          连接真实 EchoLens API
-        </div>
+          <span>{healthLabel}</span>
+        </button>
       </aside>
       <main className="main-content">{children}</main>
     </div>
