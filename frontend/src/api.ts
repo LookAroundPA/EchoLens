@@ -24,6 +24,13 @@ export class ApiError extends Error {
   }
 }
 
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
+
+function apiUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path
+  return `${apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`
+}
+
 function queryString(values: Record<string, string | number | boolean | undefined>): string {
   const params = new URLSearchParams()
   Object.entries(values).forEach(([key, value]) => {
@@ -36,7 +43,7 @@ function queryString(values: Record<string, string | number | boolean | undefine
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+  const response = await fetch(apiUrl(path), {
     ...init,
     headers: {
       Accept: 'application/json',
@@ -57,6 +64,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return (await response.json()) as T
+}
+
+async function getVideo(id: number): Promise<VideoDetail> {
+  const video = await request<VideoDetail>(`/api/videos/${id}`)
+  return {
+    ...video,
+    audioUrl: video.audioUrl ? apiUrl(video.audioUrl) : null,
+  }
 }
 
 export const api = {
@@ -83,7 +98,7 @@ export const api = {
       })}`,
     ),
 
-  video: (id: number) => request<VideoDetail>(`/api/videos/${id}`),
+  video: getVideo,
 
   tags: (creator?: string, limit = 100) =>
     request<TagListResponse>(`/api/tags${queryString({ creator, limit })}`),
