@@ -36,10 +36,14 @@ def output_path_for(video: dict[str, object], settings: Settings) -> Path:
     def safe_part(value: object) -> str:
         return str(value).replace("/", "_").replace("\\", "_").replace("..", "_")
 
+    creator_identity = video.get("creator_sec_uid") or video.get("author_id")
+    if not creator_identity:
+        raise AudioExtractionError("Video row does not contain a creator identity.")
+
     return (
         settings.audio_output_dir
         / safe_part(video["platform"])
-        / safe_part(video["author_id"])
+        / safe_part(creator_identity)
         / f"{safe_part(video['video_id'])}.wav"
     )
 
