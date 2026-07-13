@@ -1,4 +1,4 @@
-"""Minimal database-driven worker for DeepSeek content analysis."""
+"""Database-driven worker for DeepSeek content analysis."""
 
 from dataclasses import dataclass
 
@@ -32,17 +32,34 @@ class AnalysisWorker:
         self.analyzer = analyzer or DeepSeekAnalyzer(self.settings)
 
     def process_one(self) -> AnalysisWorkerResult:
-        """Claim and analyze at most one transcribed video."""
+        """Claim and analyze the next transcribed video."""
 
+        return self._claim_and_process(video_db_id=None)
+
+    def process_video(self, video_db_id: int) -> AnalysisWorkerResult:
+        """Claim and analyze one specific transcribed video."""
+
+        return self._claim_and_process(video_db_id=video_db_id)
+
+    def _claim_and_process(self, video_db_id: int | None) -> AnalysisWorkerResult:
         with mysql_connection(self.settings) as connection:
             repository = AnalysisRepository(connection)
-            video = repository.claim_next_video()
+            video = (
+                repository.claim_next_video()
+                if video_db_id is None
+                else repository.claim_video(video_db_id)
+            )
             connection.commit()
 
         if video is None:
-            return AnalysisWorkerResult(handled=False, completed=False, failed=False)
+            return AnalysisWorkerResult(
+                handled=False,
+                completed=False,
+                failed=False,
+                video_db_id=video_db_id,
+            )
 
-        video_db_id = int(video["id"])
+        claimed_id = int(video["id"])
         try:
             result: AnalysisResult = self.analyzer.analyze(
                 transcript_text=str(video["transcript_text"]),
@@ -50,7 +67,7 @@ class AnalysisWorker:
             )
             with mysql_connection(self.settings) as connection:
                 AnalysisRepository(connection).save_result(
-                    video_db_id,
+                    claimed_id,
                     result,
                     model_name=self.settings.llm_model,
                 )
@@ -59,17 +76,17 @@ class AnalysisWorker:
                 handled=True,
                 completed=True,
                 failed=False,
-                video_db_id=video_db_id,
+                video_db_id=claimed_id,
             )
         except Exception as exc:
             error_message = str(exc)
             with mysql_connection(self.settings) as connection:
-                AnalysisRepository(connection).mark_failed(video_db_id, error_message)
+                AnalysisRepository(connection).mark_failed(claimed_id, error_message)
                 connection.commit()
             return AnalysisWorkerResult(
                 handled=True,
                 completed=False,
                 failed=True,
-                video_db_id=video_db_id,
+                video_db_id=claimed_id,
                 error_message=error_message,
             )
