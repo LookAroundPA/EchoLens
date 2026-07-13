@@ -151,7 +151,7 @@ class OperationService:
             return result
 
         if resolved_stage == "audio":
-            audio = AudioWorker(settings=self.settings).process_video(video_db_id)
+            audio = AudioWorker(settings=self.settings).process_video(video_db_id, force=True)
             result["stages"]["audio"] = {
                 "completed": audio.completed,
                 "skipped": audio.skipped,
