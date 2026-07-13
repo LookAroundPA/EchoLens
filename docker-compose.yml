@@ -11,9 +11,14 @@ services:
       AUDIO_OUTPUT_DIR: /data/audio
       MYSQL_HOST: host.docker.internal
       REDIS_HOST: host.docker.internal
+      HF_HOME: /models/huggingface
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - "D:/BaiduNetdiskDownload/dy src:/data/douyin:ro"
       - "D:/BaiduNetdiskDownload/dy out:/data/audio"
+      - "echolens_model_cache:/models"
     command: ["scan"]
+
+volumes:
+  echolens_model_cache:
