@@ -1,4 +1,4 @@
-"""Persistence operations for the minimal LLM analysis stage."""
+"""Persistence operations for the LLM analysis stage."""
 
 from datetime import datetime
 import json
@@ -18,7 +18,20 @@ class AnalysisRepository:
     def claim_next_video(self) -> dict[str, Any] | None:
         """Claim the oldest transcribed video for LLM analysis."""
 
+        return self._claim_video()
+
+    def claim_video(self, video_db_id: int) -> dict[str, Any] | None:
+        """Claim one specific transcribed video for LLM analysis."""
+
+        return self._claim_video(video_db_id)
+
+    def _claim_video(self, video_db_id: int | None = None) -> dict[str, Any] | None:
         cursor = self.connection.cursor(dictionary=True)
+        params: list[Any] = ["transcribed"]
+        id_condition = ""
+        if video_db_id is not None:
+            id_condition = " AND v.id = %s"
+            params.append(video_db_id)
         cursor.execute(
             """
             SELECT
@@ -30,18 +43,17 @@ class AnalysisRepository:
             FROM videos AS v
             INNER JOIN transcripts AS t ON t.video_id = v.id
             WHERE v.status = %s
-            ORDER BY v.id
-            LIMIT 1
-            FOR UPDATE
-            """,
-            ("transcribed",),
+            """
+            + id_condition
+            + " ORDER BY v.id LIMIT 1 FOR UPDATE",
+            tuple(params),
         )
         row = cursor.fetchone()
         if row is None:
             cursor.close()
             return None
 
-        video_db_id = int(row["id"])
+        claimed_id = int(row["id"])
         cursor.execute(
             """
             UPDATE videos
@@ -51,7 +63,7 @@ class AnalysisRepository:
             WHERE id = %s
               AND status = %s
             """,
-            ("analyzing", datetime.now(), video_db_id, "transcribed"),
+            ("analyzing", datetime.now(), claimed_id, "transcribed"),
         )
         if cursor.rowcount != 1:
             cursor.close()
