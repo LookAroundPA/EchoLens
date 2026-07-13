@@ -3,6 +3,7 @@
 import typer
 
 from echolens.analysis_worker import AnalysisWorker
+from echolens.cli.knowledge import knowledge_app
 from echolens.collector.local_ingest import LocalIngestService
 from echolens.collector.local_scanner import LocalSourceScanner
 from echolens.core.config import Settings, get_settings
@@ -10,6 +11,7 @@ from echolens.transcription_worker import TranscriptionWorker
 from echolens.worker import AudioWorker
 
 app = typer.Typer(help="EchoLens command line tools.")
+app.add_typer(knowledge_app, name="knowledge")
 
 
 def _validate_limit_options(once: bool, max_tasks: int | None) -> int | None:
