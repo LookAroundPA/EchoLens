@@ -1,9 +1,10 @@
-"""Typed response models for the EchoLens frontend API."""
+"""Typed response and request models for the EchoLens frontend API."""
 
 from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime, timezone
+from enum import Enum
 import json
 from typing import Any
 
@@ -75,6 +76,15 @@ class CreatorDetailResponse(ApiModel):
     videos: list[VideoSummary] = Field(default_factory=list)
 
 
+class VideoListResponse(ApiModel):
+    items: list[VideoSummary]
+    total: int
+
+
+class TagListResponse(ApiModel):
+    items: list[TagCount]
+
+
 class TranscriptSegment(ApiModel):
     start: float
     end: float
@@ -96,16 +106,69 @@ class SearchResponse(ApiModel):
     total: int
 
 
+class JobStatus(str, Enum):
+    queued = "queued"
+    running = "running"
+    succeeded = "succeeded"
+    failed = "failed"
+
+
+class ProcessingJob(ApiModel):
+    id: int
+    video_id: int | None = None
+    job_type: str
+    status: JobStatus
+    retry_count: int = 0
+    payload: dict[str, Any] = Field(default_factory=dict)
+    result: dict[str, Any] | None = None
+    error_message: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
+class JobListResponse(ApiModel):
+    items: list[ProcessingJob]
+    total: int
+
+
+class ScanActionRequest(ApiModel):
+    enqueue: bool = True
+
+
+class PipelineActionRequest(ApiModel):
+    scan: bool = True
+    max_tasks: int | None = Field(default=None, ge=1, le=10000)
+
+
+class VideoProcessStage(str, Enum):
+    current = "current"
+    audio = "audio"
+    transcription = "transcription"
+    analysis = "analysis"
+
+
+class VideoProcessRequest(ApiModel):
+    stage: VideoProcessStage = VideoProcessStage.current
+    continue_to_done: bool = True
+
+
+def json_value(value: Any, default: Any) -> Any:
+    if value is None:
+        return default
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return default
+    return value
+
+
 def json_string_list(value: Any) -> list[str]:
     """Normalize a MySQL JSON list into clean strings."""
 
-    if value is None:
-        return []
-    if isinstance(value, str):
-        try:
-            value = json.loads(value)
-        except json.JSONDecodeError:
-            return []
+    value = json_value(value, [])
     if not isinstance(value, list):
         return []
     return [normalized for item in value if (normalized := str(item).strip())]
@@ -114,13 +177,7 @@ def json_string_list(value: Any) -> list[str]:
 def transcript_segments(value: Any) -> list[TranscriptSegment]:
     """Normalize timestamped transcript segments stored as MySQL JSON."""
 
-    if value is None:
-        return []
-    if isinstance(value, str):
-        try:
-            value = json.loads(value)
-        except json.JSONDecodeError:
-            return []
+    value = json_value(value, [])
     if not isinstance(value, list):
         return []
 
@@ -197,4 +254,23 @@ def creator_summary_from_row(
         completed_count=int(row.get("completed_count") or 0),
         top_tags=top_tags or [],
         updated_at=row.get("updated_at"),
+    )
+
+
+def processing_job_from_row(row: dict[str, Any]) -> ProcessingJob:
+    payload = json_value(row.get("payload_json"), {})
+    result = json_value(row.get("result_json"), None)
+    return ProcessingJob(
+        id=int(row["id"]),
+        video_id=(int(row["video_id"]) if row.get("video_id") is not None else None),
+        job_type=str(row["job_type"]),
+        status=JobStatus(str(row["status"])),
+        retry_count=int(row.get("retry_count") or 0),
+        payload=payload if isinstance(payload, dict) else {},
+        result=result if isinstance(result, dict) else None,
+        error_message=row.get("error_message"),
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+        started_at=row.get("started_at"),
+        finished_at=row.get("finished_at"),
     )
