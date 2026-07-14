@@ -1,10 +1,12 @@
 """FastAPI dependencies for EchoLens HTTP endpoints."""
 
 from collections.abc import Iterator
+from functools import lru_cache
 
 from fastapi import Depends
 
 from echolens.api.content_service import ContentService
+from echolens.api.knowledge_service import KnowledgeService
 from echolens.api.management_service import ManagementService
 from echolens.api.queued_operations import QueuedOperationService
 from echolens.api.service import FrontendService
@@ -54,3 +56,14 @@ def get_operation_service() -> QueuedOperationService:
     """Create jobs in MySQL and submit them to the independent Redis worker."""
 
     return QueuedOperationService()
+
+
+@lru_cache(maxsize=1)
+def _shared_knowledge_service() -> KnowledgeService:
+    """Keep the local embedding model warm across API requests."""
+
+    return KnowledgeService()
+
+
+def get_knowledge_service() -> KnowledgeService:
+    return _shared_knowledge_service()
