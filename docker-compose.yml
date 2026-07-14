@@ -9,6 +9,7 @@ services:
     environment:
       DOUYIN_SOURCE_DIR: /data/douyin
       AUDIO_OUTPUT_DIR: /data/audio
+      SEMANTIC_INDEX_PATH: /data/semantic/echolens.sqlite3
       MYSQL_HOST: host.docker.internal
       REDIS_HOST: host.docker.internal
       HF_HOME: /models/huggingface
@@ -18,6 +19,7 @@ services:
       - "D:/BaiduNetdiskDownload/dy src:/data/douyin:ro"
       - "D:/BaiduNetdiskDownload/dy out:/data/audio"
       - "echolens_model_cache:/models"
+      - "echolens_semantic_data:/data/semantic"
     command: ["scan"]
 
   api:
@@ -30,6 +32,7 @@ services:
     environment:
       DOUYIN_SOURCE_DIR: /data/douyin
       AUDIO_OUTPUT_DIR: /data/audio
+      SEMANTIC_INDEX_PATH: /data/semantic/echolens.sqlite3
       MYSQL_HOST: host.docker.internal
       REDIS_HOST: host.docker.internal
       HF_HOME: /models/huggingface
@@ -41,6 +44,7 @@ services:
       - "D:/BaiduNetdiskDownload/dy src:/data/douyin:ro"
       - "D:/BaiduNetdiskDownload/dy out:/data/audio"
       - "echolens_model_cache:/models"
+      - "echolens_semantic_data:/data/semantic"
     ports:
       - "8000:8000"
     command: ["api", "--host", "0.0.0.0", "--port", "8000"]
@@ -55,6 +59,7 @@ services:
     environment:
       DOUYIN_SOURCE_DIR: /data/douyin
       AUDIO_OUTPUT_DIR: /data/audio
+      SEMANTIC_INDEX_PATH: /data/semantic/echolens.sqlite3
       MYSQL_HOST: host.docker.internal
       REDIS_HOST: host.docker.internal
       HF_HOME: /models/huggingface
@@ -64,8 +69,10 @@ services:
       - "D:/BaiduNetdiskDownload/dy src:/data/douyin:ro"
       - "D:/BaiduNetdiskDownload/dy out:/data/audio"
       - "echolens_model_cache:/models"
+      - "echolens_semantic_data:/data/semantic"
     restart: unless-stopped
     command: ["job-worker"]
 
 volumes:
   echolens_model_cache:
+  echolens_semantic_data:
