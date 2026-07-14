@@ -91,9 +91,33 @@ class TranscriptSegment(ApiModel):
     text: str
 
 
+class KeyPointEvidence(ApiModel):
+    key_point_index: int
+    segment_index: int
+    segment_count: int = 1
+    start: float
+    end: float
+    text: str
+    score: float
+
+
+class SearchMatch(ApiModel):
+    match_type: str
+    text: str
+    start: float | None = None
+    end: float | None = None
+    segment_index: int | None = None
+    segment_count: int = 1
+
+
+class SearchHit(VideoSummary):
+    match: SearchMatch
+
+
 class VideoDetail(VideoSummary):
     transcript: str | None = None
     segments: list[TranscriptSegment] = Field(default_factory=list)
+    key_point_evidence: list[KeyPointEvidence] = Field(default_factory=list)
     language: str | None = None
     audio_size: int | None = None
     audio_url: str | None = None
@@ -102,7 +126,7 @@ class VideoDetail(VideoSummary):
 
 
 class SearchResponse(ApiModel):
-    items: list[VideoSummary]
+    items: list[SearchHit]
     total: int
 
 
