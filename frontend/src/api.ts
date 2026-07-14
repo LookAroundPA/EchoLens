@@ -1,4 +1,5 @@
 import type {
+  BatchVideoProcessRequest,
   CreatorDetailResponse,
   CreatorListResponse,
   DashboardResponse,
@@ -137,6 +138,12 @@ export const api = {
 
   processVideo: (id: number, payload: VideoProcessRequest) =>
     request<ProcessingJob>(`/api/videos/${id}/actions/process`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  processVideos: (payload: BatchVideoProcessRequest) =>
+    request<ProcessingJob>('/api/videos/actions/batch-process', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
