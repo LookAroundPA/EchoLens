@@ -7,6 +7,7 @@ from echolens.cli.knowledge import knowledge_app
 from echolens.collector.local_ingest import LocalIngestService
 from echolens.collector.local_scanner import LocalSourceScanner
 from echolens.core.config import Settings, get_settings
+from echolens.operation_job_worker import OperationJobWorker
 from echolens.transcription_worker import TranscriptionWorker
 from echolens.worker import AudioWorker
 
@@ -208,13 +209,54 @@ def pipeline(
     )
 
 
+@app.command("job-worker")
+def job_worker(
+    once: bool = typer.Option(default=False, help="Process at most one operation and exit."),
+    max_tasks: int | None = typer.Option(default=None, min=1, help="Maximum operations to process before exit."),
+    poll_timeout: int = typer.Option(default=5, min=1, max=60, help="Redis blocking poll timeout in seconds."),
+    recover: bool = typer.Option(default=True, help="Recover messages reserved by a previously stopped worker."),
+) -> None:
+    """Run the independent worker for API-triggered operations."""
+
+    limit = _validate_limit_options(once, max_tasks)
+    service = OperationJobWorker(settings=get_settings())
+    recovered = service.recover_reserved() if recover else 0
+    if recovered:
+        typer.echo(f"Recovered {recovered} reserved operation(s).")
+
+    processed = completed = failed = skipped = 0
+    try:
+        while limit is None or processed < limit:
+            result = service.process_one(timeout=poll_timeout)
+            if not result.handled:
+                if limit is None:
+                    continue
+                break
+            processed += 1
+            skipped += int(result.skipped)
+            if not result.skipped:
+                completed += int(result.completed)
+                failed += int(not result.completed)
+            typer.echo(
+                f"operation job_id={result.job_id} completed={result.completed} "
+                f"skipped={result.skipped}"
+            )
+    except KeyboardInterrupt:
+        typer.echo("Operation worker stopped.")
+
+    typer.echo(
+        "Operation worker result: "
+        f"processed={processed} completed={completed} failed={failed} skipped={skipped}"
+    )
+
+
 @app.command()
 def api(
     host: str | None = typer.Option(default=None, help="HTTP bind host."),
     port: int | None = typer.Option(default=None, min=1, max=65535, help="HTTP bind port."),
     reload: bool = typer.Option(default=False, help="Reload the server when Python files change."),
 ) -> None:
-    """Run the read-only FastAPI service for the frontend."""
+    """Run the FastAPI service for the frontend."""
 
     import uvicorn
 
