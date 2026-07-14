@@ -1,0 +1,130 @@
+.batch-panel {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+.batch-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.batch-toolbar > strong {
+  color: var(--text);
+  font-size: .88rem;
+}
+
+.batch-select-all {
+  padding-right: 14px;
+  border-right: 1px solid var(--line);
+}
+
+.batch-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.batch-feedback {
+  margin-top: 14px;
+  padding: 11px 13px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid rgba(81, 214, 154, .18);
+  border-radius: 11px;
+  background: rgba(81, 214, 154, .07);
+  color: #bcebd4;
+  font-size: .82rem;
+}
+
+.batch-feedback-warning {
+  border-color: rgba(240, 191, 101, .2);
+  background: rgba(240, 191, 101, .08);
+  color: #f4d292;
+}
+
+.video-grid-selectable {
+  align-items: stretch;
+}
+
+.selectable-video {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.selectable-video .video-card {
+  flex: 1;
+}
+
+.selectable-video.is-selected .video-card {
+  border-color: rgba(142, 166, 255, .55);
+  background: rgba(112, 137, 255, .08);
+  box-shadow: 0 0 0 2px rgba(112, 137, 255, .1);
+}
+
+.video-selection-control {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .025);
+  color: var(--muted);
+  font-size: .74rem;
+  cursor: pointer;
+}
+
+.video-selection-control:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.video-selection-control input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-strong);
+}
+
+.selectable-video.is-selected .video-selection-control {
+  color: #cbd5ff;
+  border-color: rgba(142, 166, 255, .3);
+  background: rgba(112, 137, 255, .09);
+}
+
+@media (max-width: 900px) {
+  .batch-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 680px) {
+  .batch-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .batch-select-all {
+    padding-right: 0;
+    padding-bottom: 10px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .batch-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .batch-feedback {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
