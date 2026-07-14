@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, formatBytes, formatDate, formatDuration } from './api'
 import {
   EmptyState,
@@ -12,7 +12,7 @@ import {
   StatusBadge,
   TagPills,
 } from './components'
-import type { ProcessingJob, VideoDetail, VideoProcessStage } from './types'
+import type { KeyPointEvidence, ProcessingJob, VideoDetail, VideoProcessStage } from './types'
 import './video-detail-page.css'
 
 function uniqueLines(value: string): string[] {
@@ -28,11 +28,31 @@ function hasAnalysis(item: VideoDetail): boolean {
   return Boolean(item.summary || item.tags.length || item.keyPoints.length || item.analysisModel)
 }
 
+function parseNonNegativeNumber(value: string | null): number | null {
+  if (value === null || value.trim() === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
+}
+
+function parseSegmentIndex(value: string | null, length: number): number | null {
+  if (value === null || value.trim() === '') return null
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed >= 0 && parsed < length ? parsed : null
+}
+
+function evidenceMap(items: KeyPointEvidence[]): Map<number, KeyPointEvidence> {
+  return new Map(items.map((item) => [item.keyPointIndex, item]))
+}
+
 export function VideoDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
   const videoId = Number(id)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const segmentRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const lastAppliedDeepLink = useRef<string | null>(null)
   const [stage, setStage] = useState<VideoProcessStage>('current')
   const [continueToDone, setContinueToDone] = useState(true)
   const [editingTranscript, setEditingTranscript] = useState(false)
@@ -41,6 +61,10 @@ export function VideoDetailPage() {
   const [summaryDraft, setSummaryDraft] = useState('')
   const [tagsDraft, setTagsDraft] = useState('')
   const [keyPointsDraft, setKeyPointsDraft] = useState('')
+  const [currentTime, setCurrentTime] = useState(0)
+  const [activeSegmentIndex, setActiveSegmentIndex] = useState<number | null>(null)
+  const [playbackNotice, setPlaybackNotice] = useState('')
+  const [copyNotice, setCopyNotice] = useState('')
 
   const video = useQuery({
     queryKey: ['video', videoId],
@@ -58,6 +82,12 @@ export function VideoDetailPage() {
   }, [video.data?.id, video.data?.updatedAt])
 
   const currentVideo = video.data
+  const sourceByKeyPoint = useMemo(
+    () => evidenceMap(currentVideo?.keyPointEvidence ?? []),
+    [currentVideo?.keyPointEvidence],
+  )
+  const timeParam = searchParams.get('t')
+  const segmentParam = searchParams.get('segment')
   const transcriptDirty = editingTranscript
     && transcriptDraft !== (currentVideo?.transcript ?? '')
   const analysisDirty = editingAnalysis && currentVideo !== undefined && (
@@ -75,6 +105,12 @@ export function VideoDetailPage() {
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [transcriptDirty, analysisDirty])
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio || audio.readyState === 0 || !currentVideo) return
+    applyDeepLink()
+  }, [currentVideo?.audioUrl, currentVideo?.segments, timeParam, segmentParam])
 
   function openJob(job: ProcessingJob) {
     navigate(`/jobs?focus=${job.id}`)
@@ -157,6 +193,82 @@ export function VideoDetailPage() {
     saveTranscript.mutate({ reanalyzeAfterSave })
   }
 
+  function scrollToSegment(index: number) {
+    window.requestAnimationFrame(() => {
+      segmentRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }
+
+  function updateDeepLink(start: number, segmentIndex: number | null) {
+    const next = new URLSearchParams(searchParams)
+    const normalizedTime = Math.round(start * 100) / 100
+    next.set('t', String(normalizedTime))
+    if (segmentIndex !== null) next.set('segment', String(segmentIndex))
+    else next.delete('segment')
+    setSearchParams(next, { replace: true })
+    return `${videoId}:${normalizedTime}:${segmentIndex ?? ''}`
+  }
+
+  function playFrom(start: number, segmentIndex: number | null, updateUrl = true) {
+    const audio = audioRef.current
+    if (updateUrl) lastAppliedDeepLink.current = updateDeepLink(start, segmentIndex)
+    setCurrentTime(start)
+    setActiveSegmentIndex(segmentIndex)
+    setPlaybackNotice('')
+    if (segmentIndex !== null) scrollToSegment(segmentIndex)
+    if (!audio || audio.readyState === 0) return
+    audio.currentTime = start
+    void audio.play().catch(() => {
+      setPlaybackNotice(`已定位到 ${formatDuration(start)}，浏览器阻止了自动播放，请点击播放器开始。`)
+    })
+  }
+
+  function applyDeepLink() {
+    const item = currentVideo
+    const audio = audioRef.current
+    if (!item || !audio) return
+    const requestedSegment = parseSegmentIndex(segmentParam, item.segments.length)
+    const requestedTime = parseNonNegativeNumber(timeParam)
+    const targetTime = requestedTime ?? (
+      requestedSegment !== null ? item.segments[requestedSegment]?.start ?? null : null
+    )
+    if (targetTime === null) return
+    const targetSegment = requestedSegment ?? item.segments.findIndex(
+      (segment) => targetTime >= segment.start && targetTime < segment.end,
+    )
+    const normalizedSegment = targetSegment >= 0 ? targetSegment : null
+    const key = `${videoId}:${Math.round(targetTime * 100) / 100}:${normalizedSegment ?? ''}`
+    if (lastAppliedDeepLink.current === key) return
+    lastAppliedDeepLink.current = key
+    playFrom(targetTime, normalizedSegment, false)
+  }
+
+  function handleTimeUpdate() {
+    const audio = audioRef.current
+    const item = currentVideo
+    if (!audio || !item) return
+    const time = audio.currentTime
+    setCurrentTime(time)
+    const index = item.segments.findIndex(
+      (segment) => time >= segment.start && time < segment.end,
+    )
+    setActiveSegmentIndex(index >= 0 ? index : null)
+  }
+
+  async function copyCurrentLink() {
+    const url = new URL(window.location.href)
+    url.searchParams.set('t', String(Math.round(currentTime * 100) / 100))
+    if (activeSegmentIndex !== null) url.searchParams.set('segment', String(activeSegmentIndex))
+    else url.searchParams.delete('segment')
+    try {
+      await navigator.clipboard.writeText(url.toString())
+      setCopyNotice('已复制时间链接')
+    } catch {
+      setCopyNotice('复制失败，请复制浏览器地址栏')
+    }
+    window.setTimeout(() => setCopyNotice(''), 2500)
+  }
+
   if (!Number.isFinite(videoId)) return <ErrorState error={new Error('无效的视频 ID')} />
   if (video.isLoading) return <LoadingState label="正在读取视频详情…" />
   if (video.isError) return <ErrorState error={video.error} retry={() => { void video.refetch() }} />
@@ -197,7 +309,7 @@ export function VideoDetailPage() {
         <div className="detail-main page-stack">
           <Panel
             title="内容分析"
-            description={analysisStale ? '当前显示的是修改转写前的分析结果。' : undefined}
+            description={analysisStale ? '当前显示的是修改转写前的分析结果。' : '关键观点会自动关联最接近的原始转写片段。'}
             action={!editingAnalysis ? (
               <button className="button button-secondary" onClick={() => setEditingAnalysis(true)}>编辑分析</button>
             ) : undefined}
@@ -256,8 +368,25 @@ export function VideoDetailPage() {
                 <div>
                   <h3>关键观点</h3>
                   {item.keyPoints.length ? (
-                    <ol className="key-points">
-                      {item.keyPoints.map((point, index) => <li key={`${index}-${point}`}>{point}</li>)}
+                    <ol className="key-points key-points-with-sources">
+                      {item.keyPoints.map((point, index) => {
+                        const evidence = sourceByKeyPoint.get(index)
+                        return (
+                          <li key={`${index}-${point}`}>
+                            <p>{point}</p>
+                            {evidence ? (
+                              <button
+                                type="button"
+                                className="evidence-link"
+                                onClick={() => playFrom(evidence.start, evidence.segmentIndex)}
+                              >
+                                <span>▶ 来源 {formatDuration(evidence.start)} – {formatDuration(evidence.end)}</span>
+                                <small>{evidence.text}</small>
+                              </button>
+                            ) : <small className="evidence-missing">未自动匹配到明确时间片段</small>}
+                          </li>
+                        )
+                      })}
                     </ol>
                   ) : <EmptyState title="暂无关键观点" />}
                 </div>
@@ -304,21 +433,46 @@ export function VideoDetailPage() {
             ) : <EmptyState title="暂无转写文本" />}
           </Panel>
           {item.segments.length ? (
-            <Panel title="时间戳分段" description={`${item.segments.length} 个片段`}>
-              <div className="segments">
+            <Panel title="时间戳分段" description={`${item.segments.length} 个片段 · 点击任意片段开始播放`}>
+              <div className="segments evidence-segments">
                 {item.segments.map((segment, index) => (
-                  <div className="segment" key={`${segment.start}-${index}`}>
-                    <span>{formatDuration(segment.start)} – {formatDuration(segment.end)}</span>
+                  <button
+                    type="button"
+                    className={`segment segment-button${activeSegmentIndex === index ? ' is-active' : ''}`}
+                    key={`${segment.start}-${index}`}
+                    ref={(element) => { segmentRefs.current[index] = element }}
+                    onClick={() => playFrom(segment.start, index)}
+                    aria-current={activeSegmentIndex === index ? 'true' : undefined}
+                  >
+                    <span>▶ {formatDuration(segment.start)} – {formatDuration(segment.end)}</span>
                     <p>{segment.text}</p>
-                  </div>
+                  </button>
                 ))}
               </div>
             </Panel>
           ) : null}
         </div>
         <aside className="detail-aside page-stack">
-          <Panel title="音频">
-            {item.audioUrl ? <audio className="audio-player" controls preload="metadata" src={item.audioUrl} /> : <p className="muted">暂无可播放音频</p>}
+          <Panel title="音频" description={activeSegmentIndex !== null ? `正在定位片段 ${activeSegmentIndex + 1}` : '点击观点来源或转写片段可直接定位'}>
+            {item.audioUrl ? (
+              <>
+                <audio
+                  ref={audioRef}
+                  className="audio-player"
+                  controls
+                  preload="metadata"
+                  src={item.audioUrl}
+                  onLoadedMetadata={applyDeepLink}
+                  onTimeUpdate={handleTimeUpdate}
+                />
+                <div className="playback-toolbar">
+                  <span>当前位置 <strong>{formatDuration(currentTime)}</strong></span>
+                  <button type="button" className="button button-secondary" onClick={() => { void copyCurrentLink() }}>复制时间链接</button>
+                </div>
+                {playbackNotice ? <p className="playback-notice">{playbackNotice}</p> : null}
+                {copyNotice ? <p className="copy-notice">{copyNotice}</p> : null}
+              </>
+            ) : <p className="muted">暂无可播放音频</p>}
             <dl className="meta-list">
               <div><dt>文件大小</dt><dd>{formatBytes(item.audioSize)}</dd></div>
               <div><dt>转写模型</dt><dd>{item.transcriptionModel || '—'}</dd></div>
