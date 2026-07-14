@@ -106,6 +106,17 @@ class OperationJobWorkerTests(unittest.TestCase):
         self.assertEqual(queue.acknowledged, [])
         self.assertEqual(queue.retried, [self.reserved.raw_payload])
 
+    def test_returns_message_when_job_does_not_reach_terminal_status(self) -> None:
+        queue = FakeQueue(self.reserved)
+        service = FakeService(make_job(JobStatus.queued), make_job(JobStatus.running))
+        worker = OperationJobWorker(queue=queue, service=service)
+
+        with self.assertRaisesRegex(RuntimeError, "did not reach a terminal status"):
+            worker.process_one(timeout=1)
+
+        self.assertEqual(queue.acknowledged, [])
+        self.assertEqual(queue.retried, [self.reserved.raw_payload])
+
     def test_delegates_startup_recovery(self) -> None:
         queue = FakeQueue(None)
         queue.recovered = 3
