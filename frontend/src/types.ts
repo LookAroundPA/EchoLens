@@ -143,3 +143,13 @@ export interface VideoProcessRequest {
 export interface BatchVideoProcessRequest extends VideoProcessRequest {
   videoIds: number[]
 }
+
+export interface TranscriptUpdateRequest {
+  transcript: string
+}
+
+export interface AnalysisUpdateRequest {
+  summary: string
+  tags: string[]
+  keyPoints: string[]
+}
