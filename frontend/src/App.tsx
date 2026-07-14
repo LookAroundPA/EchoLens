@@ -6,8 +6,8 @@ import {
   CreatorsPage,
   DashboardPage,
   NotFoundPage,
-  SearchPage,
 } from './pages'
+import { SearchPage } from './search-page'
 import { VideoDetailPage } from './video-detail-page'
 import { VideosPage } from './videos-page'
 
