@@ -113,20 +113,25 @@ def _exact_segment_window(
     normalized_query = normalize_text(query)
     if not normalized_query:
         return None
-    for segment_index, segment_count, start, end, text in _segment_windows(
-        segments,
-        max_size=3,
-    ):
-        if normalized_query in normalize_text(text):
-            return SearchMatch(
-                match_type="transcript",
-                text=excerpt(text, query),
-                start=start,
-                end=end,
-                segment_index=segment_index,
-                segment_count=segment_count,
-            )
-    return None
+    matches = [
+        window
+        for window in _segment_windows(segments, max_size=3)
+        if normalized_query in normalize_text(window[4])
+    ]
+    if not matches:
+        return None
+    segment_index, segment_count, start, end, text = min(
+        matches,
+        key=lambda item: (item[1], item[0]),
+    )
+    return SearchMatch(
+        match_type="transcript",
+        text=excerpt(text, query),
+        start=start,
+        end=end,
+        segment_index=segment_index,
+        segment_count=segment_count,
+    )
 
 
 def _segment_windows(
