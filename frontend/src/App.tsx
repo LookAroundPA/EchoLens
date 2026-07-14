@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom'
 import { AppShell } from './components'
 import { CreatorDetailPage } from './creator-detail-page'
 import { JobsPage } from './jobs-page-progress'
+import { KnowledgePage } from './knowledge-page'
 import {
   CreatorsPage,
   DashboardPage,
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/creators" element={<CreatorsPage />} />
         <Route path="/creators/:secUid" element={<CreatorDetailPage />} />
         <Route path="/search" element={<SearchPage />} />
+        <Route path="/ask" element={<KnowledgePage />} />
         <Route path="/jobs" element={<JobsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
