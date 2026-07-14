@@ -7,17 +7,54 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from pydantic import Field
+
 from echolens.api.evidence import key_point_evidence, normalize_text
 from echolens.api.models import (
-    CreatorInsight,
-    CreatorPointSource,
-    CreatorProfile,
-    RepresentativeVideo,
+    ApiModel,
+    CreatorSummary,
     TagCount,
+    VideoSummary,
     json_string_list,
     transcript_segments,
     video_summary_from_row,
 )
+
+
+class CreatorPointSource(ApiModel):
+    video_id: int
+    title: str
+    published_at: datetime | None = None
+    start: float | None = None
+    end: float | None = None
+    segment_index: int | None = None
+    excerpt: str | None = None
+
+
+class CreatorInsight(ApiModel):
+    text: str
+    occurrence_count: int
+    sources: list[CreatorPointSource] = Field(default_factory=list)
+
+
+class RepresentativeVideo(VideoSummary):
+    reason: str
+
+
+class CreatorProfile(ApiModel):
+    overview: str
+    analyzed_video_count: int = 0
+    main_themes: list[TagCount] = Field(default_factory=list)
+    insights: list[CreatorInsight] = Field(default_factory=list)
+    representative_videos: list[RepresentativeVideo] = Field(default_factory=list)
+    recent_videos: list[VideoSummary] = Field(default_factory=list)
+
+
+class CreatorProfileResponse(ApiModel):
+    creator: CreatorSummary
+    top_tags: list[TagCount] = Field(default_factory=list)
+    videos: list[VideoSummary] = Field(default_factory=list)
+    profile: CreatorProfile
 
 
 @dataclass
@@ -86,13 +123,11 @@ def build_creator_profile(
             cluster.normalized_variants.append(normalized)
             cluster.sources_by_video.setdefault(summary.id, source)
 
-        top_theme_coverage = sum(theme_counter[tag] for tag in set(tags))
         completeness_score = (
             (5.0 if summary.summary else 0.0)
             + min(len(tags), 6) * 1.25
             + min(len(points), 8) * 1.6
             + len(evidence_by_point) * 1.1
-            + min(top_theme_coverage, 12) * 0.25
         )
         reasons: list[str] = []
         if tags:
