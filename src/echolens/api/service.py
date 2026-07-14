@@ -5,10 +5,12 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from typing import Any
 
+from echolens.api.evidence import key_point_evidence, search_match
 from echolens.api.models import (
     CreatorDetailResponse,
     CreatorListResponse,
     DashboardResponse,
+    SearchHit,
     SearchResponse,
     VideoDetail,
     creator_summary_from_row,
@@ -91,20 +93,28 @@ class FrontendService:
             tag=tag,
             limit=limit,
         )
-        return SearchResponse(
-            items=[video_summary_from_row(row) for row in rows],
-            total=total,
-        )
+        items: list[SearchHit] = []
+        for row in rows:
+            summary = video_summary_from_row(row)
+            items.append(
+                SearchHit(
+                    **summary.model_dump(),
+                    match=search_match(row, query),
+                )
+            )
+        return SearchResponse(items=items, total=total)
 
     def video_detail(self, video_db_id: int) -> VideoDetail | None:
         row = self.repository.get_video(video_db_id)
         if row is None:
             return None
         summary = video_summary_from_row(row)
+        segments = transcript_segments(row.get("segments_json"))
         return VideoDetail(
             **summary.model_dump(),
             transcript=row.get("transcript_text"),
-            segments=transcript_segments(row.get("segments_json")),
+            segments=segments,
+            key_point_evidence=key_point_evidence(summary.key_points, segments),
             language=row.get("language"),
             audio_size=(int(row["audio_size"]) if row.get("audio_size") is not None else None),
             audio_url=(f"/api/videos/{video_db_id}/audio" if row.get("audio_path") else None),
