@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 
+from echolens.api.creator_profile import CreatorProfileResponse
 from echolens.api.dependencies import (
     get_frontend_repository,
     get_frontend_service,
@@ -14,7 +15,6 @@ from echolens.api.dependencies import (
 )
 from echolens.api.management_service import ManagementService
 from echolens.api.models import (
-    CreatorDetailResponse,
     CreatorListResponse,
     DashboardResponse,
     JobListResponse,
@@ -57,13 +57,13 @@ def creators(
     return service.creators(query=q, limit=limit)
 
 
-@router.get("/creators/{sec_uid}", response_model=CreatorDetailResponse)
+@router.get("/creators/{sec_uid}", response_model=CreatorProfileResponse)
 def creator_detail(
     sec_uid: str,
     limit: int = Query(default=100, ge=1, le=500),
     service: FrontendService = Depends(get_frontend_service),
-) -> CreatorDetailResponse:
-    """Return one creator and that creator's video timeline."""
+) -> CreatorProfileResponse:
+    """Return one creator, aggregated knowledge profile, and video timeline."""
 
     result = service.creator_detail(sec_uid, limit=limit)
     if result is None:
@@ -178,12 +178,12 @@ def job_detail(
     job_id: int,
     service: QueuedOperationService = Depends(get_operation_service),
 ) -> ProcessingJob:
-    """Return the current state and result of one processing job."""
+    """Return one processing job and its stage results."""
 
-    job = service.get_job(job_id)
-    if job is None:
+    result = service.get_job(job_id)
+    if result is None:
         raise HTTPException(status_code=404, detail="Job not found")
-    return job
+    return result
 
 
 @router.post(
