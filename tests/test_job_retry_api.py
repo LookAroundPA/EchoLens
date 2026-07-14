@@ -37,10 +37,10 @@ class FakeRetryService:
 
 class FakeOperationService:
     def __init__(self) -> None:
-        self.executed: list[tuple[int, str, dict]] = []
+        self.enqueued: list[ProcessingJob] = []
 
-    def run_job(self, job_id: int, job_type: str, payload: dict) -> None:
-        self.executed.append((job_id, job_type, payload))
+    def enqueue_job(self, job: ProcessingJob) -> None:
+        self.enqueued.append(job)
 
 
 class JobRetryApiTests(unittest.TestCase):
@@ -51,16 +51,13 @@ class JobRetryApiTests(unittest.TestCase):
         app.dependency_overrides[get_operation_service] = lambda: self.operation_service
         self.client = TestClient(app)
 
-    def test_retry_creates_and_dispatches_new_job(self) -> None:
+    def test_retry_creates_and_enqueues_new_job(self) -> None:
         response = self.client.post("/api/jobs/5/actions/retry")
 
         self.assertEqual(response.status_code, 202)
         self.assertEqual(response.json()["id"], 17)
         self.assertEqual(response.json()["retryCount"], 2)
-        self.assertEqual(
-            self.operation_service.executed,
-            [(17, "pipeline", {"scan": False, "maxTasks": 3})],
-        )
+        self.assertEqual([job.id for job in self.operation_service.enqueued], [17])
 
     def test_missing_job_returns_not_found(self) -> None:
         response = self.client.post("/api/jobs/404/actions/retry")
