@@ -10,6 +10,7 @@ services:
       DOUYIN_SOURCE_DIR: /data/douyin
       AUDIO_OUTPUT_DIR: /data/audio
       SEMANTIC_INDEX_PATH: /data/semantic/echolens.sqlite3
+      SEMANTIC_MODEL_CACHE_DIR: /models/fastembed
       MYSQL_HOST: host.docker.internal
       REDIS_HOST: host.docker.internal
       HF_HOME: /models/huggingface
@@ -33,6 +34,7 @@ services:
       DOUYIN_SOURCE_DIR: /data/douyin
       AUDIO_OUTPUT_DIR: /data/audio
       SEMANTIC_INDEX_PATH: /data/semantic/echolens.sqlite3
+      SEMANTIC_MODEL_CACHE_DIR: /models/fastembed
       MYSQL_HOST: host.docker.internal
       REDIS_HOST: host.docker.internal
       HF_HOME: /models/huggingface
@@ -60,6 +62,7 @@ services:
       DOUYIN_SOURCE_DIR: /data/douyin
       AUDIO_OUTPUT_DIR: /data/audio
       SEMANTIC_INDEX_PATH: /data/semantic/echolens.sqlite3
+      SEMANTIC_MODEL_CACHE_DIR: /models/fastembed
       MYSQL_HOST: host.docker.internal
       REDIS_HOST: host.docker.internal
       HF_HOME: /models/huggingface
