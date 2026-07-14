@@ -1,3 +1,24 @@
+.semantic-index-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.semantic-index-strip div {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.semantic-index-strip span,
+.semantic-index-strip small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .search-hit-list {
   display: grid;
   gap: 14px;
@@ -41,7 +62,8 @@
 }
 
 .match-type,
-.match-time {
+.match-time,
+.semantic-score {
   display: inline-flex;
   align-items: center;
   min-height: 27px;
@@ -55,6 +77,12 @@
   color: #cbd5ff;
   background: rgba(112, 137, 255, 0.11);
   border: 1px solid rgba(112, 137, 255, 0.18);
+}
+
+.semantic-score {
+  color: #f4cc7f;
+  background: rgba(240, 191, 101, 0.08);
+  border: 1px solid rgba(240, 191, 101, 0.16);
 }
 
 .match-time {
@@ -97,6 +125,7 @@
 }
 
 @media (max-width: 680px) {
+  .semantic-index-strip,
   .search-hit-header,
   .search-hit-footer {
     align-items: flex-start;
