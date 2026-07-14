@@ -1,5 +1,7 @@
 import type {
   AnalysisUpdateRequest,
+  AskRequest,
+  AskResponse,
   BatchVideoProcessRequest,
   CreatorDetailResponse,
   CreatorListResponse,
@@ -9,6 +11,9 @@ import type {
   PipelineRequest,
   ProcessingJob,
   SearchResponse,
+  SemanticIndexStatus,
+  SemanticSearchResponse,
+  SemanticSyncRequest,
   TagListResponse,
   TranscriptUpdateRequest,
   VideoDetail,
@@ -129,6 +134,25 @@ export const api = {
 
   search: (q: string, creator?: string, tag?: string, limit = 50) =>
     request<SearchResponse>(`/api/search${queryString({ q, creator, tag, limit })}`),
+
+  semanticStatus: () => request<SemanticIndexStatus>('/api/semantic/status'),
+
+  semanticSearch: (q: string, creator?: string, tag?: string, limit = 50) =>
+    request<SemanticSearchResponse>(
+      `/api/semantic/search${queryString({ q, creator, tag, limit })}`,
+    ),
+
+  syncSemanticIndex: (payload: SemanticSyncRequest) =>
+    request<ProcessingJob>('/api/semantic/actions/sync', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  ask: (payload: AskRequest) =>
+    request<AskResponse>('/api/ask', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
   jobs: (filters: JobFilters = {}) =>
     request<JobListResponse>(
