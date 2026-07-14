@@ -36,7 +36,12 @@ class FastEmbedder:
         if self._model is None:
             from fastembed import TextEmbedding
 
-            self._model = TextEmbedding(model_name=self.settings.semantic_model)
+            cache_dir = self.settings.semantic_model_cache_dir
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            self._model = TextEmbedding(
+                model_name=self.settings.semantic_model,
+                cache_dir=str(cache_dir),
+            )
         return self._model
 
     @staticmethod
