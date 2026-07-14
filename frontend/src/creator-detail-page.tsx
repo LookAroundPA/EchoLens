@@ -80,6 +80,7 @@ export function CreatorDetailPage() {
         description={data.creator.secUid}
         actions={(
           <>
+            <Link className="button button-primary" to={`/ask?creator=${encodeURIComponent(data.creator.secUid)}`}>问该创作者</Link>
             <Link className="button button-secondary" to={`/search?creator=${encodeURIComponent(data.creator.secUid)}`}>搜索该创作者</Link>
             <Link className="button button-secondary" to={`/videos?creator=${encodeURIComponent(data.creator.secUid)}`}>查看全部视频</Link>
           </>
