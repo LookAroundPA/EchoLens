@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from enum import Enum
+import json
 
 import typer
 
+from echolens.api.knowledge_service import KnowledgeService
 from echolens.knowledge.formatters import (
     render_creators_text,
     render_item_markdown,
@@ -13,6 +15,7 @@ from echolens.knowledge.formatters import (
     render_items_text,
     render_json,
 )
+from echolens.semantic.service import SemanticIndexService
 from echolens.storage.knowledge_repository import KnowledgeRepository
 from echolens.storage.mysql import mysql_connection
 
@@ -90,6 +93,54 @@ def search(
         typer.echo(render_items_markdown(rows))
     else:
         typer.echo(render_items_text(rows))
+
+
+@knowledge_app.command("semantic-sync")
+def semantic_sync(
+    rebuild: bool = typer.Option(default=False, help="Discard and rebuild the local index."),
+) -> None:
+    """Incrementally synchronize completed videos into the local vector index."""
+
+    result = SemanticIndexService().sync(rebuild=rebuild)
+    typer.echo(json.dumps(result.as_dict(), ensure_ascii=False, indent=2))
+
+
+@knowledge_app.command("semantic-search")
+def semantic_search(
+    query: str = typer.Argument(..., help="Natural-language semantic query."),
+    creator: str | None = typer.Option(default=None, help="Filter by creator sec_uid."),
+    tag: str | None = typer.Option(default=None, help="Filter by an exact analysis tag."),
+    limit: int = typer.Option(default=10, min=1, max=100),
+) -> None:
+    """Run local dense and keyword hybrid retrieval."""
+
+    response = KnowledgeService().search(
+        query,
+        creator_sec_uid=creator,
+        tag=tag,
+        limit=limit,
+    )
+    typer.echo(response.model_dump_json(by_alias=True, indent=2))
+
+
+@knowledge_app.command("ask")
+def ask(
+    question: str = typer.Argument(..., help="Question answered only from local video evidence."),
+    creator: str | None = typer.Option(default=None, help="Filter by creator sec_uid."),
+    tag: str | None = typer.Option(default=None, help="Filter by an exact analysis tag."),
+    max_sources: int = typer.Option(default=8, min=2, max=20),
+    thinking: bool = typer.Option(default=False, help="Enable DeepSeek V4 Pro thinking mode."),
+) -> None:
+    """Answer a grounded cross-video question with clickable source metadata."""
+
+    response = KnowledgeService().ask(
+        question,
+        creator_sec_uid=creator,
+        tag=tag,
+        max_sources=max_sources,
+        thinking=thinking,
+    )
+    typer.echo(response.model_dump_json(by_alias=True, indent=2))
 
 
 @knowledge_app.command("show")
