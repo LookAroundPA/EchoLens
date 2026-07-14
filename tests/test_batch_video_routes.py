@@ -21,7 +21,6 @@ class FakeManagementRepository:
 class FakeOperationService:
     def __init__(self) -> None:
         self.created: list[tuple[str, dict]] = []
-        self.executed: list[tuple[int, str, dict]] = []
 
     def create_job(self, *, job_type: str, payload: dict, video_id=None) -> ProcessingJob:
         self.created.append((job_type, payload))
@@ -35,9 +34,6 @@ class FakeOperationService:
             updated_at=now,
         )
 
-    def run_job(self, job_id: int, job_type: str, payload: dict) -> None:
-        self.executed.append((job_id, job_type, payload))
-
 
 class BatchVideoRouteTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -47,7 +43,7 @@ class BatchVideoRouteTests(unittest.TestCase):
         app.dependency_overrides[get_operation_service] = lambda: self.operation_service
         self.client = TestClient(app)
 
-    def test_batch_action_deduplicates_and_dispatches_selected_videos(self) -> None:
+    def test_batch_action_deduplicates_and_creates_queued_job(self) -> None:
         response = self.client.post(
             "/api/videos/actions/batch-process",
             json={
@@ -60,7 +56,6 @@ class BatchVideoRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 202)
         self.assertEqual(response.json()["jobType"], "video_batch")
         self.assertEqual(self.operation_service.created[0][1]["videoIds"], [3, 7])
-        self.assertEqual(self.operation_service.executed[0][1], "video_batch")
 
     def test_batch_action_rejects_missing_video(self) -> None:
         response = self.client.post(
