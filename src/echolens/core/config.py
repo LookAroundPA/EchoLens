@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     redis_video_processing_queue: str = "echolens:queue:video:processing"
     redis_video_lock_prefix: str = "echolens:lock:video"
 
+    redis_operation_queue: str = "echolens:queue:operations"
+    redis_operation_processing_queue: str = "echolens:queue:operations:processing"
+
     scan_stability_seconds: int = 30
 
     def parsed_api_cors_origins(self) -> list[str]:
