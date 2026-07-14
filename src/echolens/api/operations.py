@@ -16,6 +16,7 @@ from echolens.api.models import (
 from echolens.collector.local_ingest import LocalIngestService
 from echolens.collector.local_scanner import LocalSourceScanner
 from echolens.core.config import Settings, get_settings
+from echolens.semantic.service import SemanticIndexService
 from echolens.storage.management_repository import ManagementRepository
 from echolens.storage.mysql import mysql_connection
 from echolens.transcription_worker import TranscriptionWorker
@@ -96,6 +97,10 @@ class OperationService:
                         video_ids=[int(value) for value in payload.get("videoIds", [])],
                         stage=VideoProcessStage(str(payload.get("stage", "current"))),
                         continue_to_done=bool(payload.get("continueToDone", True)),
+                    )
+                elif job_type == "semantic_index":
+                    result = self._run_semantic_index(
+                        rebuild=bool(payload.get("rebuild", False))
                     )
                 else:
                     raise ValueError(f"Unsupported job type: {job_type}")
@@ -242,6 +247,9 @@ class OperationService:
             "failed": failed,
             "items": items,
         }
+
+    def _run_semantic_index(self, *, rebuild: bool) -> dict[str, Any]:
+        return SemanticIndexService(self.settings).sync(rebuild=rebuild).as_dict()
 
     def _run_audio_stage(self, limit: int | None) -> dict[str, int]:
         processed = completed = skipped = 0
