@@ -208,7 +208,7 @@ export function JobsPage() {
         <JobDetail
           job={focusedJob.data}
           close={closeFocusedJob}
-          retry={() => retryJob.mutate(focusedJob.data.id)}
+          retry={() => retryJob.mutate(focusId)}
           isRetrying={retryJob.isPending}
         />
       ) : null}
