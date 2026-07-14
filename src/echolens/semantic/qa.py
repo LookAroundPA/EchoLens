@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -10,6 +11,8 @@ from pydantic import BaseModel, Field
 from echolens.api.semantic_models import KnowledgeSource
 from echolens.core.config import Settings, get_settings
 
+
+_CITATION_PATTERN = re.compile(r"\[(S\d+)\]")
 
 SYSTEM_PROMPT = """你是 EchoLens 的本地知识问答助手。
 你只能依据用户提供的来源片段回答，不得使用来源之外的事实补全答案。
@@ -105,12 +108,22 @@ class DeepSeekKnowledgeAnswerer:
             raise ValueError("DeepSeek returned an empty knowledge answer")
 
         generated = GeneratedAnswer.model_validate(json.loads(content))
-        valid_ids = {source.source_id for source in sources}
-        generated.used_source_ids = [
-            source_id for source_id in generated.used_source_ids if source_id in valid_ids
-        ]
         if not generated.answer.strip():
             raise ValueError("DeepSeek returned an empty answer field")
+
+        valid_ids = {source.source_id for source in sources}
+        cited_ids = set(_CITATION_PATTERN.findall(generated.answer))
+        invalid_ids = sorted(cited_ids - valid_ids)
+        if invalid_ids:
+            raise ValueError(
+                "DeepSeek cited unavailable sources: " + ", ".join(invalid_ids)
+            )
+        if not generated.insufficient_evidence and not cited_ids:
+            raise ValueError("DeepSeek returned an answer without source citations")
+
+        generated.used_source_ids = [
+            source.source_id for source in sources if source.source_id in cited_ids
+        ]
         return generated
 
     def _get_client(self) -> Any:
