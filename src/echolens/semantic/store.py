@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from array import array
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sqlite3
-from typing import Iterable
+from typing import Iterable, Iterator
 
 
 @dataclass(frozen=True)
@@ -49,7 +50,7 @@ class SemanticStore:
 
     def initialize(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS semantic_meta (
@@ -94,7 +95,7 @@ class SemanticStore:
 
     def clear(self) -> None:
         self.initialize()
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute("DELETE FROM semantic_chunks")
             connection.execute("DELETE FROM semantic_videos")
             connection.execute("DELETE FROM semantic_meta")
@@ -103,7 +104,7 @@ class SemanticStore:
         if not self.path.is_file():
             return SemanticStoreStatus(False, None, 0, 0, None)
         self.initialize()
-        with self._connect() as connection:
+        with self._connection() as connection:
             video_count = int(
                 connection.execute("SELECT COUNT(*) FROM semantic_videos").fetchone()[0]
             )
@@ -121,7 +122,7 @@ class SemanticStore:
 
     def fingerprints(self) -> dict[int, str]:
         self.initialize()
-        with self._connect() as connection:
+        with self._connection() as connection:
             return {
                 int(row[0]): str(row[1])
                 for row in connection.execute(
@@ -140,7 +141,7 @@ class SemanticStore:
         self.initialize()
         materialized = list(chunks)
         indexed_at = datetime.now(timezone.utc).isoformat()
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute("DELETE FROM semantic_chunks WHERE video_id = ?", (video_id,))
             connection.executemany(
                 """
@@ -192,13 +193,13 @@ class SemanticStore:
 
     def remove_video(self, video_id: int) -> None:
         self.initialize()
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute("DELETE FROM semantic_chunks WHERE video_id = ?", (video_id,))
             connection.execute("DELETE FROM semantic_videos WHERE video_id = ?", (video_id,))
 
     def remove_missing_videos(self, current_video_ids: set[int]) -> int:
         self.initialize()
-        with self._connect() as connection:
+        with self._connection() as connection:
             existing = {
                 int(row[0])
                 for row in connection.execute("SELECT video_id FROM semantic_videos").fetchall()
@@ -223,9 +224,18 @@ class SemanticStore:
         if creator_sec_uid:
             sql += " WHERE creator_sec_uid = ?"
             params = (creator_sec_uid,)
-        with self._connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(sql, params).fetchall()
         return [self._row_to_chunk(row) for row in rows]
+
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
+        connection = self._connect()
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30)
