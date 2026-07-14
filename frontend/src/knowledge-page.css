@@ -1,0 +1,205 @@
+.knowledge-index-panel {
+  margin-bottom: 1rem;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.knowledge-index-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.knowledge-index-status div {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.knowledge-index-status span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.index-rebuild-button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.knowledge-question-panel {
+  margin-bottom: 1.4rem;
+}
+
+.knowledge-question-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.knowledge-question-field textarea {
+  width: 100%;
+  min-height: 9rem;
+  resize: vertical;
+  border: 1px solid var(--line);
+  background: rgba(8, 12, 21, .68);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 14px 15px;
+  line-height: 1.7;
+  outline: none;
+}
+
+.knowledge-question-field textarea:focus {
+  border-color: rgba(136, 157, 255, .5);
+  box-shadow: 0 0 0 3px rgba(112, 137, 255, .09);
+}
+
+.knowledge-question-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.knowledge-thinking-option {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .025);
+}
+
+.knowledge-question-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.knowledge-result-stack {
+  margin-top: 1rem;
+}
+
+.knowledge-answer-panel {
+  border-color: rgba(81, 214, 154, .2);
+  background: linear-gradient(155deg, rgba(81, 214, 154, .06), rgba(14, 19, 31, .94));
+}
+
+.knowledge-answer-panel.is-insufficient {
+  border-color: rgba(240, 191, 101, .24);
+  background: linear-gradient(155deg, rgba(240, 191, 101, .07), rgba(14, 19, 31, .94));
+}
+
+.knowledge-answer-text {
+  white-space: pre-wrap;
+  color: #dce3ef;
+  font-size: 1rem;
+  line-height: 1.9;
+}
+
+.answer-citation {
+  display: inline-flex;
+  margin: 0 0.15rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  color: #cbd5ff;
+  background: rgba(112, 137, 255, .16);
+  border: 1px solid rgba(132, 153, 249, .24);
+  font-size: 0.78rem;
+  font-weight: 800;
+  vertical-align: 0.08rem;
+}
+
+.knowledge-source-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.knowledge-source-card {
+  min-width: 0;
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .025);
+  transition: transform .16s ease, border-color .16s ease, background .16s ease;
+}
+
+.knowledge-source-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(132, 153, 249, .28);
+  background: rgba(112, 137, 255, .045);
+}
+
+.knowledge-source-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+
+.knowledge-source-heading > span {
+  flex: 0 0 auto;
+  padding: 0.3rem 0.5rem;
+  border-radius: 8px;
+  color: #cbd5ff;
+  background: rgba(112, 137, 255, .14);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.knowledge-source-heading div {
+  min-width: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.knowledge-source-heading strong {
+  line-height: 1.45;
+}
+
+.knowledge-source-heading small {
+  color: var(--muted);
+}
+
+.knowledge-source-card p {
+  margin: 0;
+  color: #cbd3e2;
+  line-height: 1.65;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.knowledge-source-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.knowledge-source-footer strong {
+  color: var(--accent);
+  text-align: right;
+}
+
+@media (max-width: 900px) {
+  .knowledge-question-options,
+  .knowledge-source-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .knowledge-index-status,
+  .knowledge-source-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .knowledge-question-actions .button {
+    width: 100%;
+  }
+}
