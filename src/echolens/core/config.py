@@ -38,6 +38,20 @@ class Settings(BaseSettings):
     llm_temperature: float = Field(default=0.2, ge=0.0, le=2.0)
     llm_max_tokens: int = Field(default=2048, ge=256)
 
+    qa_model: str = "deepseek-v4-pro"
+    qa_temperature: float = Field(default=0.1, ge=0.0, le=2.0)
+    qa_max_tokens: int = Field(default=4096, ge=512)
+    qa_default_sources: int = Field(default=8, ge=2, le=20)
+
+    semantic_model: str = "BAAI/bge-small-zh-v1.5"
+    semantic_query_prefix: str = "为这个句子生成表示以用于检索相关文章："
+    semantic_index_path: Path = Path("data/semantic/echolens.sqlite3")
+    semantic_auto_sync: bool = True
+    semantic_chunk_max_chars: int = Field(default=420, ge=80, le=2000)
+    semantic_chunk_max_segments: int = Field(default=3, ge=1, le=8)
+    semantic_max_chunks_per_video: int = Field(default=2, ge=1, le=10)
+    semantic_min_score: float = Field(default=0.18, ge=0.0, le=1.0)
+
     api_host: str = "0.0.0.0"
     api_port: int = Field(default=8000, ge=1, le=65535)
     api_cors_origins: str = (
