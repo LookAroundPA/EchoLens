@@ -14,12 +14,13 @@ import {
 import type { JobStatus, ProcessingJob } from './types'
 
 const jobStatuses: Array<JobStatus | ''> = ['', 'queued', 'running', 'succeeded', 'failed']
-const jobTypes = ['', 'scan', 'pipeline', 'video_process']
+const jobTypes = ['', 'scan', 'pipeline', 'video_process', 'video_batch']
 
 const jobTypeLabels: Record<string, string> = {
   scan: '扫描内容源',
   pipeline: '完整处理流程',
   video_process: '单视频处理',
+  video_batch: '批量视频处理',
 }
 
 const metricLabels: Record<string, string> = {
@@ -29,6 +30,7 @@ const metricLabels: Record<string, string> = {
   queued: '已入队',
   skippedExisting: '已存在',
   processed: '已处理',
+  total: '视频总数',
   completed: '已完成',
   failed: '失败',
   enqueue: '入队',
@@ -77,6 +79,15 @@ function stageLabel(stage: string): string {
     analysis: '内容分析',
   }
   return labels[stage] ?? stage
+}
+
+function jobTarget(job: ProcessingJob): string {
+  if (job.videoId) return `视频 #${job.videoId}`
+  const videoIds = job.payload.videoIds
+  if (job.jobType === 'video_batch' && Array.isArray(videoIds)) {
+    return `${videoIds.length} 个视频`
+  }
+  return '全局任务'
 }
 
 export function JobsPage() {
@@ -152,7 +163,7 @@ export function JobsPage() {
       <PageHeader
         eyebrow="运行中心"
         title="处理任务"
-        description="查看扫描、完整 pipeline 和单视频重跑的实时状态；失败任务可直接重新执行。"
+        description="查看扫描、完整 pipeline、单视频和批量处理的实时状态；失败任务可直接重新执行。"
         actions={(
           <button
             className="button button-secondary"
@@ -235,7 +246,7 @@ export function JobsPage() {
                     <strong>{jobTypeLabels[job.jobType] ?? job.jobType}</strong>
                     <small>{formatDate(job.createdAt)}</small>
                   </span>
-                  {job.videoId ? <span>视频 #{job.videoId}</span> : <span>全局任务</span>}
+                  <span>{jobTarget(job)}</span>
                   <JobBadge status={job.status} />
                 </button>
               ))}
