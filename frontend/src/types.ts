@@ -139,3 +139,7 @@ export interface VideoProcessRequest {
   stage: VideoProcessStage
   continueToDone: boolean
 }
+
+export interface BatchVideoProcessRequest extends VideoProcessRequest {
+  videoIds: number[]
+}
