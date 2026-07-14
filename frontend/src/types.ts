@@ -50,9 +50,33 @@ export interface TranscriptSegment {
   text: string
 }
 
+export interface KeyPointEvidence {
+  keyPointIndex: number
+  segmentIndex: number
+  segmentCount: number
+  start: number
+  end: number
+  text: string
+  score: number
+}
+
+export interface SearchMatch {
+  matchType: string
+  text: string
+  start: number | null
+  end: number | null
+  segmentIndex: number | null
+  segmentCount: number
+}
+
+export interface SearchHit extends VideoSummary {
+  match: SearchMatch
+}
+
 export interface VideoDetail extends VideoSummary {
   transcript: string | null
   segments: TranscriptSegment[]
+  keyPointEvidence: KeyPointEvidence[]
   language: string | null
   audioSize: number | null
   audioUrl: string | null
@@ -90,7 +114,7 @@ export interface TagListResponse {
 }
 
 export interface SearchResponse {
-  items: VideoSummary[]
+  items: SearchHit[]
   total: number
 }
 
