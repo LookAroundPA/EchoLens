@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     qa_default_sources: int = Field(default=8, ge=2, le=20)
 
     semantic_model: str = "BAAI/bge-small-zh-v1.5"
+    semantic_model_cache_dir: Path = Path("data/models/fastembed")
     semantic_query_prefix: str = "为这个句子生成表示以用于检索相关文章："
     semantic_index_path: Path = Path("data/semantic/echolens.sqlite3")
     semantic_auto_sync: bool = True
