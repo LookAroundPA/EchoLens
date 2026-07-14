@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 
 from echolens.api.dependencies import (
@@ -28,7 +28,7 @@ from echolens.api.models import (
     VideoListResponse,
     VideoProcessRequest,
 )
-from echolens.api.operations import OperationService
+from echolens.api.queued_operations import QueuedOperationService
 from echolens.api.service import FrontendService
 from echolens.storage.frontend_repository import FrontendRepository
 from echolens.storage.management_repository import ManagementRepository
@@ -161,7 +161,7 @@ def jobs(
     job_type: str | None = Query(default=None, max_length=64),
     video_id: int | None = Query(default=None, ge=1),
     limit: int = Query(default=50, ge=1, le=500),
-    service: OperationService = Depends(get_operation_service),
+    service: QueuedOperationService = Depends(get_operation_service),
 ) -> JobListResponse:
     """List frontend-triggered processing jobs."""
 
@@ -176,7 +176,7 @@ def jobs(
 @router.get("/jobs/{job_id}", response_model=ProcessingJob)
 def job_detail(
     job_id: int,
-    service: OperationService = Depends(get_operation_service),
+    service: QueuedOperationService = Depends(get_operation_service),
 ) -> ProcessingJob:
     """Return the current state and result of one processing job."""
 
@@ -193,15 +193,12 @@ def job_detail(
 )
 def start_scan(
     request: ScanActionRequest,
-    background_tasks: BackgroundTasks,
-    service: OperationService = Depends(get_operation_service),
+    service: QueuedOperationService = Depends(get_operation_service),
 ) -> ProcessingJob:
-    """Scan the source directory and optionally enqueue newly discovered videos."""
+    """Queue a source scan and optional ingest operation."""
 
     payload = request.model_dump(by_alias=True, mode="json")
-    job = service.create_job(job_type="scan", payload=payload)
-    background_tasks.add_task(service.run_job, job.id, "scan", payload)
-    return job
+    return service.create_job(job_type="scan", payload=payload)
 
 
 @router.post(
@@ -211,15 +208,12 @@ def start_scan(
 )
 def start_pipeline(
     request: PipelineActionRequest,
-    background_tasks: BackgroundTasks,
-    service: OperationService = Depends(get_operation_service),
+    service: QueuedOperationService = Depends(get_operation_service),
 ) -> ProcessingJob:
-    """Run scan, audio extraction, transcription, and analysis in sequence."""
+    """Queue scan, audio extraction, transcription, and analysis in sequence."""
 
     payload = request.model_dump(by_alias=True, mode="json")
-    job = service.create_job(job_type="pipeline", payload=payload)
-    background_tasks.add_task(service.run_job, job.id, "pipeline", payload)
-    return job
+    return service.create_job(job_type="pipeline", payload=payload)
 
 
 @router.post(
@@ -230,19 +224,16 @@ def start_pipeline(
 def process_video(
     video_db_id: int,
     request: VideoProcessRequest,
-    background_tasks: BackgroundTasks,
     repository: ManagementRepository = Depends(get_management_repository),
-    service: OperationService = Depends(get_operation_service),
+    service: QueuedOperationService = Depends(get_operation_service),
 ) -> ProcessingJob:
-    """Continue or rerun one video from a selected stage."""
+    """Queue one video to continue or rerun from a selected stage."""
 
     if repository.get_video_state(video_db_id) is None:
         raise HTTPException(status_code=404, detail="Video not found")
     payload = {"videoId": video_db_id, **request.model_dump(by_alias=True, mode="json")}
-    job = service.create_job(
+    return service.create_job(
         job_type="video_process",
         payload=payload,
         video_id=video_db_id,
     )
-    background_tasks.add_task(service.run_job, job.id, "video_process", payload)
-    return job
