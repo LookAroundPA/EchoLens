@@ -1,8 +1,8 @@
 import { Route, Routes } from 'react-router-dom'
 import { AppShell } from './components'
+import { CreatorDetailPage } from './creator-detail-page'
 import { JobsPage } from './jobs-page-progress'
 import {
-  CreatorDetailPage,
   CreatorsPage,
   DashboardPage,
   NotFoundPage,
