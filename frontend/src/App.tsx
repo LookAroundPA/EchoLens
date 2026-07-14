@@ -7,8 +7,8 @@ import {
   DashboardPage,
   NotFoundPage,
   SearchPage,
-  VideoDetailPage,
 } from './pages'
+import { VideoDetailPage } from './video-detail-page'
 import { VideosPage } from './videos-page'
 
 export default function App() {
