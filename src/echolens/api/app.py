@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 
 from echolens.api.batch_routes import router as batch_router
 from echolens.api.content_routes import router as content_router
+from echolens.api.knowledge_routes import router as knowledge_router
 from echolens.api.models import HealthResponse
 from echolens.api.queued_operations import JobQueueUnavailable
 from echolens.api.retry_routes import router as retry_router
@@ -20,7 +21,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application = FastAPI(
         title="EchoLens API",
         description="Frontend API for browsing and operating the EchoLens content pipeline.",
-        version="0.8.0",
+        version="0.9.0",
     )
     application.add_middleware(
         CORSMiddleware,
@@ -33,6 +34,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(retry_router, prefix="/api")
     application.include_router(batch_router, prefix="/api")
     application.include_router(content_router, prefix="/api")
+    application.include_router(knowledge_router, prefix="/api")
 
     @application.exception_handler(JobQueueUnavailable)
     def operation_queue_unavailable(
