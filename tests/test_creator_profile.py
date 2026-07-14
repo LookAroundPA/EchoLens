@@ -90,7 +90,7 @@ class CreatorProfileTests(unittest.TestCase):
         profile = build_creator_profile("创作者", [sparse, rich])
 
         self.assertEqual(profile.representative_videos[0].id, 12)
-        self.assertIn("3 条", profile.representative_videos[0].reason)
+        self.assertIn("覆盖 AI、效率、创造力", profile.representative_videos[0].reason)
 
     def test_empty_profile_has_clear_fallback(self) -> None:
         profile = build_creator_profile("创作者", [])
