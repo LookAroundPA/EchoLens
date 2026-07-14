@@ -102,25 +102,29 @@ class FakeManagementRepository:
 
 class FakeOperationService:
     def __init__(self) -> None:
-        self.executed: list[tuple[int, str, dict]] = []
+        self.created: list[tuple[str, dict, int | None]] = []
 
     @staticmethod
-    def _job(job_id=1, job_type="scan", video_id=None) -> ProcessingJob:
+    def _job(job_id=1, job_type="scan", video_id=None, payload=None) -> ProcessingJob:
         now = datetime(2026, 7, 13, 12, 0, 0)
         return ProcessingJob(
             id=job_id,
             video_id=video_id,
             job_type=job_type,
             status=JobStatus.queued,
+            payload=payload or {},
             created_at=now,
             updated_at=now,
         )
 
     def create_job(self, job_type, payload, video_id=None) -> ProcessingJob:
-        return self._job(job_id=7, job_type=job_type, video_id=video_id)
-
-    def run_job(self, job_id, job_type, payload) -> None:
-        self.executed.append((job_id, job_type, payload))
+        self.created.append((job_type, payload, video_id))
+        return self._job(
+            job_id=7,
+            job_type=job_type,
+            video_id=video_id,
+            payload=payload,
+        )
 
     def get_job(self, job_id):
         return None if job_id == 999 else self._job(job_id=job_id)
@@ -160,7 +164,7 @@ class FrontendApiRouteTests(unittest.TestCase):
         self.assertEqual(video.status_code, 404)
         self.assertEqual(job.status_code, 404)
 
-    def test_scan_pipeline_and_video_actions_return_jobs(self) -> None:
+    def test_scan_pipeline_and_video_actions_return_queued_jobs(self) -> None:
         scan = self.client.post("/api/actions/scan", json={"enqueue": True})
         pipeline = self.client.post(
             "/api/actions/pipeline",
@@ -176,9 +180,10 @@ class FrontendApiRouteTests(unittest.TestCase):
         self.assertEqual(video.status_code, 202)
         self.assertEqual(video.json()["videoId"], 7)
         self.assertEqual(
-            [item[1] for item in self.operation_service.executed],
+            [item[0] for item in self.operation_service.created],
             ["scan", "pipeline", "video_process"],
         )
+        self.assertEqual(self.operation_service.created[2][2], 7)
 
     def test_missing_video_action_is_rejected(self) -> None:
         response = self.client.post(
