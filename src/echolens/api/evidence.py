@@ -110,12 +110,14 @@ def _exact_segment_window(
     segments: list[TranscriptSegment],
     query: str,
 ) -> SearchMatch | None:
-    lowered = query.casefold()
+    normalized_query = normalize_text(query)
+    if not normalized_query:
+        return None
     for segment_index, segment_count, start, end, text in _segment_windows(
         segments,
         max_size=3,
     ):
-        if lowered in text.casefold():
+        if normalized_query in normalize_text(text):
             return SearchMatch(
                 match_type="transcript",
                 text=excerpt(text, query),
@@ -135,7 +137,8 @@ def _segment_windows(
     for start_index in range(len(segments)):
         for size in range(1, min(max_size, len(segments) - start_index) + 1):
             window = segments[start_index : start_index + size]
-            text = " ".join(item.text.strip() for item in window if item.text.strip())
+            parts = [item.text.strip() for item in window if item.text.strip()]
+            text = _join_segment_text(parts)
             if not text:
                 continue
             yield (
@@ -145,6 +148,24 @@ def _segment_windows(
                 float(window[-1].end),
                 text,
             )
+
+
+def _join_segment_text(parts: list[str]) -> str:
+    result = ""
+    for part in parts:
+        if not result:
+            result = part
+            continue
+        left = result[-1]
+        right = part[0]
+        separator = " " if (
+            left.isascii()
+            and right.isascii()
+            and left.isalnum()
+            and right.isalnum()
+        ) else ""
+        result += separator + part
+    return result
 
 
 def _similarity(left: str, right: str) -> float:
