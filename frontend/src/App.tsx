@@ -1,10 +1,10 @@
 import { Route, Routes } from 'react-router-dom'
 import { AppShell } from './components'
+import { JobsPage } from './jobs-page'
 import {
   CreatorDetailPage,
   CreatorsPage,
   DashboardPage,
-  JobsPage,
   NotFoundPage,
   SearchPage,
   VideoDetailPage,
