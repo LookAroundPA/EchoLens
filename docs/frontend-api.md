@@ -1,29 +1,13 @@
 # EchoLens 前端 HTTP API
 
-该 API 供 EchoLens Web 前端浏览内容并触发当前已实现的处理流程。
-
-它包含：
-
-- 总览、创作者、视频、标签和搜索接口；
-- 扫描与完整 pipeline 触发接口；
-- 单视频继续处理或指定阶段重跑接口；
-- 后台任务状态和结果查询接口。
+该 API 供 EchoLens Web 工作台浏览、编辑、导出内容，并向独立 Worker 提交处理任务。
 
 ## 启动
 
-现有数据库先执行一次：
-
-```text
-scripts/mysql_frontend_actions_migration.sql
-```
-
-项目早期数据不需要保留时，也可以直接使用最新 `scripts/mysql_schema.sql` 重建数据库。
-
-启动 API：
+API 和操作 Worker 一起启动：
 
 ```powershell
-docker compose build
-docker compose up api
+docker compose up --build api job-worker
 ```
 
 默认地址：
@@ -40,34 +24,22 @@ GET /openapi.json
 GET /docs
 ```
 
-## 跨域配置
+## 请求与任务执行
 
-前端开发服务器默认允许：
+HTTP JSON 字段使用 `camelCase`，时间字段使用 ISO 8601。
 
-```text
-http://localhost:5173
-http://127.0.0.1:5173
-```
-
-通过 `.env` 修改：
+耗时操作的执行方式：
 
 ```text
-API_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+HTTP 请求
+→ MySQL 创建 processing_jobs
+→ Redis operation queue
+→ 返回 202 Accepted
+→ 独立 job-worker 执行
+→ 前端轮询任务状态
 ```
 
-API 允许前端使用 `GET` 和 `POST`。
-
-## 数据格式
-
-HTTP JSON 字段使用 `camelCase`。时间字段使用 ISO 8601 格式。
-
-视频接口中的：
-
-- `id`：EchoLens MySQL 内部视频 ID，用于详情、音频和操作接口；
-- `videoId`：平台提供的视频 ID；
-- `creatorSecUid`：创作者稳定身份。
-
-耗时操作不会一直阻塞 HTTP 请求。写接口返回 `202 Accepted` 和一个 job，前端随后轮询：
+轮询接口：
 
 ```text
 GET /api/jobs/{jobId}
@@ -80,76 +52,82 @@ queued → running → succeeded
                  ↘ failed
 ```
 
+Redis 无法接收任务时，API 返回 `503`，对应 job 会被标记为 `failed`。
+
+## 跨域
+
+通过 `.env` 配置：
+
+```text
+API_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+```
+
+允许前端使用 `GET`、`POST` 和 `PATCH`。
+
 ## 浏览接口
 
-### 总览
-
-```http
+```text
 GET /api/dashboard
-```
-
-返回创作者数、视频数、完成数、状态统计、高频标签和最近视频。
-
-### 创作者列表
-
-```http
 GET /api/creators?q=<名称或sec_uid>&limit=100
-```
-
-### 创作者详情
-
-```http
 GET /api/creators/{secUid}?limit=100
-```
-
-返回创作者统计、高频标签和视频时间线。
-
-### 视频列表
-
-```http
 GET /api/videos?q=<关键词>&creator=<sec_uid>&status=<状态>&tag=<标签>&limit=50&offset=0
-```
-
-所有参数均可省略。该接口可展示所有处理状态，不限于 `done`。
-
-### 标签列表
-
-```http
-GET /api/tags?creator=<sec_uid>&limit=100
-```
-
-返回标签及其使用次数。
-
-### 视频详情
-
-```http
 GET /api/videos/{id}
-```
-
-返回：
-
-- 视频描述和发布时间；
-- 当前处理状态；
-- DeepSeek 摘要、标签和关键观点；
-- 完整转写及时间戳分段；
-- Whisper 与 DeepSeek 模型名称；
-- 音频大小和可播放 URL。
-
-### 视频音频
-
-```http
 GET /api/videos/{id}/audio
+GET /api/tags?creator=<sec_uid>&limit=100
+GET /api/search?q=<关键词>&creator=<sec_uid>&tag=<标签>&limit=20
 ```
 
-返回 `audio/wav`。数据库没有音频路径或宿主机文件不存在时返回 `404`。
+视频接口中的：
 
-### 搜索
+- `id`：EchoLens MySQL 内部视频 ID；
+- `videoId`：平台提供的视频 ID；
+- `creatorSecUid`：创作者稳定身份。
+
+搜索范围包括描述、摘要、转写、标签和关键观点。
+
+## 编辑接口
+
+### 保存完整转写
 
 ```http
-GET /api/search?q=<关键词>&creator=<sec_uid>&tag=<精确标签>&limit=20
+PATCH /api/videos/{id}/transcript
+Content-Type: application/json
+
+{
+  "transcript": "人工修正后的完整转写"
+}
 ```
 
-只有 `q` 必填。搜索范围：视频描述、摘要、转写、标签和关键观点。
+行为：
+
+- 保留原时间戳分段、语言和 Whisper 模型；
+- 视频状态改为 `transcribed`；
+- 旧分析继续保留，但前端显示为需要更新；
+- 空白转写返回 `422`。
+
+### 保存分析
+
+```http
+PATCH /api/videos/{id}/analysis
+Content-Type: application/json
+
+{
+  "summary": "摘要",
+  "tags": ["AI", "学习"],
+  "keyPoints": ["观点一", "观点二"]
+}
+```
+
+标签和关键观点会去除空白项及重复项。没有转写时返回 `409`。保存后视频状态为 `done`。
+
+## 导出接口
+
+```text
+GET /api/videos/{id}/export/markdown
+GET /api/videos/{id}/export/json
+```
+
+导出内容包含视频信息、创作者、摘要、标签、关键观点、转写、时间戳分段和模型名称，不包含本地绝对文件路径。
 
 ## 操作接口
 
@@ -161,23 +139,6 @@ Content-Type: application/json
 
 {
   "enqueue": true
-}
-```
-
-- `enqueue=true`：扫描后把新增视频写入 MySQL 并推送 Redis；
-- `enqueue=false`：只扫描和校验，不写入。
-
-任务成功结果包含：
-
-```json
-{
-  "discovered": 40,
-  "skipped": 0,
-  "issueCounts": {},
-  "enqueue": true,
-  "inserted": 0,
-  "queued": 0,
-  "skippedExisting": 40
 }
 ```
 
@@ -193,18 +154,7 @@ Content-Type: application/json
 }
 ```
 
-执行顺序：
-
-```text
-扫描并入队
-→ 音频提取
-→ Faster-Whisper 转写
-→ DeepSeek 分析
-```
-
-- `scan` 默认 `true`；
-- `maxTasks` 可省略，省略时处理当前全部可用任务；
-- `maxTasks` 是每个阶段的最大处理数量。
+执行顺序：扫描与入队、音频提取、Faster-Whisper 转写、DeepSeek 分析。
 
 ### 单视频继续或重跑
 
@@ -218,35 +168,37 @@ Content-Type: application/json
 }
 ```
 
-`stage` 可选值：
+`stage` 可选：
 
 ```text
 current
- audio
- transcription
- analysis
+audio
+transcription
+analysis
 ```
 
-含义：
+### 批量处理视频
 
-- `current`：根据视频当前状态继续；
-- `audio`：从音频提取重新开始；
-- `transcription`：保留现有 WAV，从转写重新开始；
-- `analysis`：保留现有转写，从 DeepSeek 分析重新开始。
+```http
+POST /api/videos/actions/batch-process
+Content-Type: application/json
 
-`continueToDone=true` 时，会继续执行后续阶段直到 `done`；设置为 `false` 时只执行所选阶段。
+{
+  "videoIds": [3, 7, 9],
+  "stage": "analysis",
+  "continueToDone": true
+}
+```
 
-从较早阶段重跑时，后续旧结果会删除并重新生成，避免展示旧摘要或旧转写。
+批量任务串行处理所选视频，并在 `result.items` 中保存每个视频的成功或失败结果。
 
 ## 任务接口
 
 ### 任务列表
 
-```http
+```text
 GET /api/jobs?status=<状态>&job_type=<类型>&video_id=<id>&limit=50
 ```
-
-过滤参数均可省略。
 
 任务类型：
 
@@ -254,65 +206,46 @@ GET /api/jobs?status=<状态>&job_type=<类型>&video_id=<id>&limit=50
 scan
 pipeline
 video_process
+video_batch
 ```
 
 ### 任务详情
 
-```http
+```text
 GET /api/jobs/{jobId}
 ```
 
-成功任务的 `result` 保存处理统计；失败任务的 `errorMessage` 保存错误原因。
+运行中的 `result.progress` 表示阶段或视频数量进度，不代表 Whisper 或 DeepSeek 内部执行百分比。
 
-示例：
-
-```json
-{
-  "id": 12,
-  "videoId": null,
-  "jobType": "pipeline",
-  "status": "succeeded",
-  "payload": {
-    "scan": true,
-    "maxTasks": 40
-  },
-  "result": {
-    "scan": {},
-    "audio": {},
-    "transcription": {},
-    "analysis": {}
-  },
-  "errorMessage": null
-}
-```
-
-## 前端开发代理
-
-Vite 可将 `/api` 和 `/health` 代理到：
+### 重试失败任务
 
 ```text
-http://localhost:8000
+POST /api/jobs/{jobId}/actions/retry
 ```
 
-浏览器即可使用相对路径：
+只允许重试状态为 `failed` 的任务。原任务保留，新建任务会增加 `retryCount` 并重新入 Redis。
 
-```ts
-fetch('/api/dashboard')
-fetch('/api/videos?status=done')
-fetch('/api/actions/pipeline', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ scan: true, maxTasks: 40 }),
-})
+批量任务内部部分视频失败时，前端会提取失败视频 ID，重新创建一个只包含这些视频的 `video_batch` 任务。
+
+## Redis 操作队列
+
+默认键名：
+
+```text
+echolens:queue:operations
+echolens:queue:operations:processing
 ```
 
-## 当前接口边界
+使用 Redis List 与 `BRPOPLPUSH`，兼容 Redis 3.0.504。当前默认只运行一个 `job-worker`。
 
-当前前端没有业务需求，因此不提供以下无意义的写操作：
+更多运行说明见 [独立操作 Worker](operation-worker.md)。
+
+## 当前边界
+
+当前不提供：
 
 - 删除创作者或原始视频；
-- 手工修改平台 metadata；
-- 在页面中保存 DeepSeek API Key；
-- 用户、角色和权限管理。
-
-这些不是当前前端缺失接口，而是尚未进入产品范围的功能。
+- 修改平台 metadata；
+- 在页面保存 DeepSeek API Key；
+- 用户、角色与权限管理；
+- 多 Worker 租约、心跳、延迟重试和死信机制。
