@@ -1,11 +1,11 @@
 """HTTP endpoint for retrying failed frontend processing jobs."""
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from echolens.api.dependencies import get_operation_service
 from echolens.api.job_retry import JobRetryConflict, JobRetryService
 from echolens.api.models import ProcessingJob
-from echolens.api.operations import OperationService
+from echolens.api.queued_operations import QueuedOperationService
 
 
 router = APIRouter()
@@ -24,11 +24,10 @@ def get_job_retry_service() -> JobRetryService:
 )
 def retry_job(
     job_id: int,
-    background_tasks: BackgroundTasks,
     retry_service: JobRetryService = Depends(get_job_retry_service),
-    operation_service: OperationService = Depends(get_operation_service),
+    operation_service: QueuedOperationService = Depends(get_operation_service),
 ) -> ProcessingJob:
-    """Create and dispatch a new task from one failed processing job."""
+    """Create and enqueue a new task from one failed processing job."""
 
     try:
         job = retry_service.retry(job_id)
@@ -38,10 +37,5 @@ def retry_job(
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    background_tasks.add_task(
-        operation_service.run_job,
-        job.id,
-        job.job_type,
-        job.payload,
-    )
+    operation_service.enqueue_job(job)
     return job
