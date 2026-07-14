@@ -84,6 +84,35 @@ export interface VideoDetail extends VideoSummary {
   analysisModel: string | null
 }
 
+export interface CreatorPointSource {
+  videoId: number
+  title: string
+  publishedAt: string | null
+  start: number | null
+  end: number | null
+  segmentIndex: number | null
+  excerpt: string | null
+}
+
+export interface CreatorInsight {
+  text: string
+  occurrenceCount: number
+  sources: CreatorPointSource[]
+}
+
+export interface RepresentativeVideo extends VideoSummary {
+  reason: string
+}
+
+export interface CreatorProfile {
+  overview: string
+  analyzedVideoCount: number
+  mainThemes: TagCount[]
+  insights: CreatorInsight[]
+  representativeVideos: RepresentativeVideo[]
+  recentVideos: VideoSummary[]
+}
+
 export interface DashboardResponse {
   creatorCount: number
   videoCount: number
@@ -102,6 +131,7 @@ export interface CreatorDetailResponse {
   creator: CreatorSummary
   topTags: TagCount[]
   videos: VideoSummary[]
+  profile: CreatorProfile
 }
 
 export interface VideoListResponse {
