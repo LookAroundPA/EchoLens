@@ -57,12 +57,13 @@ export function VideoDetailPage() {
     setKeyPointsDraft(item.keyPoints.join('\n'))
   }, [video.data?.id, video.data?.updatedAt])
 
+  const currentVideo = video.data
   const transcriptDirty = editingTranscript
-    && transcriptDraft !== (video.data?.transcript ?? '')
-  const analysisDirty = editingAnalysis && Boolean(video.data) && (
-    summaryDraft !== (video.data?.summary ?? '')
-    || tagsDraft !== video.data.tags.join('\n')
-    || keyPointsDraft !== video.data.keyPoints.join('\n')
+    && transcriptDraft !== (currentVideo?.transcript ?? '')
+  const analysisDirty = editingAnalysis && currentVideo !== undefined && (
+    summaryDraft !== (currentVideo.summary ?? '')
+    || tagsDraft !== currentVideo.tags.join('\n')
+    || keyPointsDraft !== currentVideo.keyPoints.join('\n')
   )
 
   useEffect(() => {
@@ -97,10 +98,21 @@ export function VideoDetailPage() {
     },
   })
 
+  const reanalyze = useMutation({
+    mutationFn: () => api.processVideo(videoId, {
+      stage: 'analysis',
+      continueToDone: true,
+    }),
+    onSuccess: (job) => {
+      void queryClient.invalidateQueries({ queryKey: ['video', videoId] })
+      openJob(job)
+    },
+  })
+
   const saveTranscript = useMutation({
-    mutationFn: async ({ reanalyze }: { reanalyze: boolean }) => {
+    mutationFn: async ({ reanalyzeAfterSave }: { reanalyzeAfterSave: boolean }) => {
       const updated = await api.updateTranscript(videoId, { transcript: transcriptDraft })
-      const job = reanalyze
+      const job = reanalyzeAfterSave
         ? await api.processVideo(videoId, { stage: 'analysis', continueToDone: true })
         : null
       return { updated, job }
@@ -136,13 +148,13 @@ export function VideoDetailPage() {
     setEditingAnalysis(false)
   }
 
-  function submitTranscript(reanalyze: boolean) {
+  function submitTranscript(reanalyzeAfterSave: boolean) {
     if (!transcriptDraft.trim()) return
-    if (reanalyze) {
+    if (reanalyzeAfterSave) {
       const confirmed = window.confirm('保存转写后将立即创建重新分析任务，确认继续？')
       if (!confirmed) return
     }
-    saveTranscript.mutate({ reanalyze })
+    saveTranscript.mutate({ reanalyzeAfterSave })
   }
 
   if (!Number.isFinite(videoId)) return <ErrorState error={new Error('无效的视频 ID')} />
@@ -173,14 +185,12 @@ export function VideoDetailPage() {
           <span>转写已经人工修改，当前摘要、标签和关键观点仍是旧结果。可继续参考，也可重新分析。</span>
           <button
             className="button button-primary"
-            onClick={() => {
-              setStage('analysis')
-              process.mutate()
-            }}
-            disabled={process.isPending}
+            onClick={() => reanalyze.mutate()}
+            disabled={reanalyze.isPending}
           >
-            {process.isPending ? '正在提交…' : '重新分析'}
+            {reanalyze.isPending ? '正在提交…' : '重新分析'}
           </button>
+          <InlineError error={reanalyze.error} />
         </div>
       ) : null}
       <div className="detail-layout">
