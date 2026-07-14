@@ -20,6 +20,7 @@ const stageLabels: Record<string, string> = {
   audio: '音频提取',
   transcription: '语音转写',
   analysis: '内容分析',
+  semantic: '本地语义索引',
   current: '根据当前状态继续',
 }
 
@@ -48,7 +49,11 @@ function progressFromJob(job: ProcessingJob): ProgressData | null {
 
 function progressDescription(job: ProcessingJob, progress: ProgressData | null): string {
   if (job.status === 'queued') return '任务正在等待当前运行任务完成。'
-  if (!progress) return '任务已经开始，正在等待第一个阶段状态。'
+  if (!progress) {
+    return job.jobType === 'semantic_index'
+      ? '正在检查内容变化并生成本地语义向量。首次运行可能需要下载嵌入模型。'
+      : '任务已经开始，正在等待第一个阶段状态。'
+  }
   if (job.status === 'succeeded') {
     return progress.unit === 'video'
       ? `已处理 ${progress.total} 个视频。`
@@ -94,7 +99,7 @@ function JobProgressCard({ job }: { job: ProcessingJob }) {
         <strong>{Math.round(percent)}%</strong>
         <p>{progressDescription(job, progress)}</p>
       </div>
-      <small>此百分比仅表示已完成的阶段或视频数量，不代表 Whisper 或 DeepSeek 内部耗时。</small>
+      <small>此百分比仅表示已完成的阶段或视频数量，不代表 Whisper、DeepSeek 或嵌入模型内部耗时。</small>
     </aside>
   )
 }
