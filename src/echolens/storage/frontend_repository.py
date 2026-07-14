@@ -234,6 +234,8 @@ class FrontendRepository:
                 v.source_create_time,
                 v.status,
                 v.updated_at,
+                t.transcript_text,
+                t.segments_json,
                 a.summary,
                 a.tags_json,
                 a.key_points_json
