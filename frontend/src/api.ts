@@ -118,6 +118,11 @@ export const api = {
 
   job: (id: number) => request<ProcessingJob>(`/api/jobs/${id}`),
 
+  retryJob: (id: number) =>
+    request<ProcessingJob>(`/api/jobs/${id}/actions/retry`, {
+      method: 'POST',
+    }),
+
   scan: (enqueue = true) =>
     request<ProcessingJob>('/api/actions/scan', {
       method: 'POST',
