@@ -5,9 +5,12 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from typing import Any
 
+from echolens.api.creator_profile import (
+    CreatorProfileResponse,
+    build_creator_profile,
+)
 from echolens.api.evidence import key_point_evidence, search_match
 from echolens.api.models import (
-    CreatorDetailResponse,
     CreatorListResponse,
     DashboardResponse,
     SearchHit,
@@ -59,7 +62,7 @@ class FrontendService:
             total=total,
         )
 
-    def creator_detail(self, sec_uid: str, limit: int) -> CreatorDetailResponse | None:
+    def creator_detail(self, sec_uid: str, limit: int) -> CreatorProfileResponse | None:
         creator_row = self.repository.get_creator(sec_uid)
         if creator_row is None:
             return None
@@ -67,16 +70,24 @@ class FrontendService:
             self.repository.completed_tag_rows(creator_sec_uid=sec_uid),
             limit=20,
         )
-        return CreatorDetailResponse(
-            creator=creator_summary_from_row(
-                creator_row,
-                top_tags=[item.tag for item in creator_tag_counts[:8]],
-            ),
+        timeline_rows = self.repository.creator_videos(sec_uid, limit=limit)
+        knowledge_rows: list[dict[str, Any]] = []
+        for row in timeline_rows:
+            if str(row.get("status")) != "done":
+                continue
+            detail_row = self.repository.get_video(int(row["id"]))
+            if detail_row is not None:
+                knowledge_rows.append(detail_row)
+
+        creator = creator_summary_from_row(
+            creator_row,
+            top_tags=[item.tag for item in creator_tag_counts[:8]],
+        )
+        return CreatorProfileResponse(
+            creator=creator,
             top_tags=creator_tag_counts,
-            videos=[
-                video_summary_from_row(row)
-                for row in self.repository.creator_videos(sec_uid, limit=limit)
-            ],
+            videos=[video_summary_from_row(row) for row in timeline_rows],
+            profile=build_creator_profile(creator.name, knowledge_rows),
         )
 
     def search(
