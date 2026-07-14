@@ -1,4 +1,5 @@
 import type {
+  AnalysisUpdateRequest,
   BatchVideoProcessRequest,
   CreatorDetailResponse,
   CreatorListResponse,
@@ -9,6 +10,7 @@ import type {
   ProcessingJob,
   SearchResponse,
   TagListResponse,
+  TranscriptUpdateRequest,
   VideoDetail,
   VideoFilters,
   VideoListResponse,
@@ -100,6 +102,27 @@ export const api = {
     ),
 
   video: getVideo,
+
+  updateTranscript: (id: number, payload: TranscriptUpdateRequest) =>
+    request<VideoDetail>(`/api/videos/${id}/transcript`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }).then((video) => ({
+      ...video,
+      audioUrl: video.audioUrl ? apiUrl(video.audioUrl) : null,
+    })),
+
+  updateAnalysis: (id: number, payload: AnalysisUpdateRequest) =>
+    request<VideoDetail>(`/api/videos/${id}/analysis`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }).then((video) => ({
+      ...video,
+      audioUrl: video.audioUrl ? apiUrl(video.audioUrl) : null,
+    })),
+
+  videoMarkdownExportUrl: (id: number) => apiUrl(`/api/videos/${id}/export/markdown`),
+  videoJsonExportUrl: (id: number) => apiUrl(`/api/videos/${id}/export/json`),
 
   tags: (creator?: string, limit = 100) =>
     request<TagListResponse>(`/api/tags${queryString({ creator, limit })}`),
