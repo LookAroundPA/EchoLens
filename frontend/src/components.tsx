@@ -9,6 +9,7 @@ const navItems = [
   { to: '/videos', label: '视频', mark: '▶' },
   { to: '/creators', label: '创作者', mark: '◎' },
   { to: '/search', label: '搜索', mark: '⌕' },
+  { to: '/ask', label: '问答', mark: '✦' },
   { to: '/jobs', label: '任务', mark: '↻' },
 ]
 
