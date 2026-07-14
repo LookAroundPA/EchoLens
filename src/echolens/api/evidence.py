@@ -150,8 +150,10 @@ def _segment_windows(
 def _similarity(left: str, right: str) -> float:
     if not left or not right:
         return 0.0
-    if left in right or right in left:
+    if left in right:
         return 1.0
+    if right in left:
+        return min(0.95, len(right) / max(1, len(left)) * 0.9)
     left_grams = _ngrams(left)
     right_grams = _ngrams(right)
     overlap = len(left_grams & right_grams)
