@@ -15,17 +15,18 @@ import type { JobStatus, ProcessingJob, VideoProcessStage } from './types'
 import './jobs-page-failures.css'
 
 const jobStatuses: Array<JobStatus | ''> = ['', 'queued', 'running', 'succeeded', 'failed']
-const jobTypes = ['', 'scan', 'pipeline', 'video_process', 'video_batch']
+const jobTypes = ['', 'scan', 'pipeline', 'video_process', 'video_batch', 'semantic_index']
 
 const jobTypeLabels: Record<string, string> = {
   scan: '扫描内容源',
   pipeline: '完整处理流程',
   video_process: '单视频处理',
   video_batch: '批量视频处理',
+  semantic_index: '语义索引同步',
 }
 
 const metricLabels: Record<string, string> = {
-  discovered: '发现',
+  discovered: '发现视频',
   skipped: '跳过',
   inserted: '新增入库',
   queued: '已入队',
@@ -39,6 +40,10 @@ const metricLabels: Record<string, string> = {
   requestedStage: '请求阶段',
   resolvedStage: '实际阶段',
   continueToDone: '继续到完成',
+  indexed: '重新索引',
+  removed: '移除旧索引',
+  chunks: '生成片段',
+  rebuilt: '完全重建',
 }
 
 type BatchFailureItem = {
@@ -70,6 +75,7 @@ function jobStageEntries(job: ProcessingJob): Array<[string, unknown]> {
   const result = job.result
   if (!result) return []
   if (job.jobType === 'scan') return [['scan', result]]
+  if (job.jobType === 'semantic_index') return [['semantic', result]]
   if (job.jobType === 'pipeline') {
     return ['scan', 'audio', 'transcription', 'analysis']
       .filter((key) => key in result)
@@ -90,12 +96,16 @@ function stageLabel(stage: string): string {
     audio: '音频提取',
     transcription: '语音转写',
     analysis: '内容分析',
+    semantic: '本地语义索引',
   }
   return labels[stage] ?? stage
 }
 
 function jobTarget(job: ProcessingJob): string {
   if (job.videoId) return `视频 #${job.videoId}`
+  if (job.jobType === 'semantic_index') {
+    return job.payload.rebuild === true ? '完全重建本地索引' : '增量同步本地索引'
+  }
   const videoIds = job.payload.videoIds
   if (job.jobType === 'video_batch' && Array.isArray(videoIds)) {
     return `${videoIds.length} 个视频`
@@ -114,7 +124,6 @@ function batchFailureItems(job: ProcessingJob): BatchFailureItem[] {
   if (job.jobType !== 'video_batch' || !job.result) return []
   const items = job.result.items
   if (!Array.isArray(items)) return []
-
   const failures: BatchFailureItem[] = []
   for (const rawItem of items) {
     if (!rawItem || typeof rawItem !== 'object' || Array.isArray(rawItem)) continue
@@ -135,13 +144,11 @@ function batchFailureItems(job: ProcessingJob): BatchFailureItem[] {
 function batchRetryPayload(job: ProcessingJob): BatchRetryPayload | null {
   const failures = batchFailureItems(job)
   if (!failures.length) return null
-
   const rawStage = job.payload.stage ?? job.result?.requestedStage
   const stage = isVideoProcessStage(rawStage) ? rawStage : 'current'
   const continueToDone = typeof job.payload.continueToDone === 'boolean'
     ? job.payload.continueToDone
     : true
-
   return {
     videoIds: failures.map((item) => item.videoId),
     stage,
@@ -207,6 +214,8 @@ export function JobsPage() {
     void queryClient.invalidateQueries({ queryKey: ['creator'] })
     void queryClient.invalidateQueries({ queryKey: ['tags'] })
     void queryClient.invalidateQueries({ queryKey: ['search'] })
+    void queryClient.invalidateQueries({ queryKey: ['semantic-status'] })
+    void queryClient.invalidateQueries({ queryKey: ['semantic-search'] })
   }, [focusedJob.data?.id, focusedJob.data?.status, queryClient])
 
   function applyFilters(event: FormEvent) {
@@ -241,7 +250,7 @@ export function JobsPage() {
       <PageHeader
         eyebrow="运行中心"
         title="处理任务"
-        description="查看扫描、完整 pipeline、单视频和批量处理的实时状态；失败任务或批量失败项可直接重新执行。"
+        description="查看扫描、视频处理、批量任务和本地语义索引的实时状态；失败任务可直接重新执行。"
         actions={(
           <button
             className="button button-secondary"
@@ -355,9 +364,11 @@ function JobDetail({
 }) {
   const stages = jobStageEntries(job)
   const failedItems = batchFailureItems(job)
-  const resultMetrics = job.result
-    ? metricEntries(job.result).filter(([key]) => key !== 'stages')
-    : []
+  const resultMetrics = job.jobType === 'semantic_index'
+    ? []
+    : job.result
+      ? metricEntries(job.result).filter(([key]) => key !== 'stages')
+      : []
   const retryLabel = job.retryCount > 0 ? ` · 第 ${job.retryCount} 次重试` : ''
 
   return (
@@ -372,17 +383,11 @@ function JobDetail({
               onClick={retryFailedItems}
               disabled={isRetryingFailedItems}
             >
-              {isRetryingFailedItems
-                ? '正在提交…'
-                : `重试 ${failedItems.length} 个失败项`}
+              {isRetryingFailedItems ? '正在提交…' : `重试 ${failedItems.length} 个失败项`}
             </button>
           ) : null}
           {job.status === 'failed' ? (
-            <button
-              className="button button-primary"
-              onClick={retry}
-              disabled={isRetrying}
-            >
+            <button className="button button-primary" onClick={retry} disabled={isRetrying}>
               {isRetrying ? '正在提交…' : '重试失败任务'}
             </button>
           ) : null}
@@ -397,9 +402,10 @@ function JobDetail({
         <div><span>完成时间</span><strong>{formatDate(job.finishedAt)}</strong></div>
       </div>
       {job.videoId ? (
-        <Link className="job-video-link" to={`/videos/${job.videoId}`}>
-          打开关联视频 #{job.videoId} →
-        </Link>
+        <Link className="job-video-link" to={`/videos/${job.videoId}`}>打开关联视频 #{job.videoId} →</Link>
+      ) : null}
+      {job.jobType === 'semantic_index' && job.status === 'succeeded' ? (
+        <Link className="job-video-link" to="/search">打开语义搜索 →</Link>
       ) : null}
       {job.errorMessage ? <p className="inline-error">{job.errorMessage}</p> : null}
       {job.status === 'failed' ? (
@@ -425,23 +431,16 @@ function JobDetail({
         </section>
       ) : null}
       {(job.status === 'queued' || job.status === 'running') ? (
-        <div className="job-running-note">
-          <span className="spinner" />任务正在后台执行，页面会自动刷新状态。
-        </div>
+        <div className="job-running-note"><span className="spinner" />任务正在后台执行，页面会自动刷新状态。</div>
       ) : null}
       {stages.length ? (
         <div className="job-stages">
           {stages.map(([stage, value]) => (
             <article className="job-stage" key={stage}>
-              <div className="job-stage-header">
-                <span>{stageLabel(stage)}</span><strong>已执行</strong>
-              </div>
+              <div className="job-stage-header"><span>{stageLabel(stage)}</span><strong>已执行</strong></div>
               <div className="stage-metrics">
                 {metricEntries(value).map(([key, metric]) => (
-                  <div key={key}>
-                    <span>{metricLabels[key] ?? key}</span>
-                    <strong>{displayMetric(metric)}</strong>
-                  </div>
+                  <div key={key}><span>{metricLabels[key] ?? key}</span><strong>{displayMetric(metric)}</strong></div>
                 ))}
               </div>
             </article>
@@ -451,10 +450,7 @@ function JobDetail({
       {resultMetrics.length ? (
         <div className="result-metrics">
           {resultMetrics.map(([key, value]) => (
-            <div key={key}>
-              <span>{metricLabels[key] ?? key}</span>
-              <strong>{displayMetric(value)}</strong>
-            </div>
+            <div key={key}><span>{metricLabels[key] ?? key}</span><strong>{displayMetric(value)}</strong></div>
           ))}
         </div>
       ) : null}
