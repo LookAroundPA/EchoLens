@@ -6,6 +6,7 @@ from fastapi import Depends
 
 from echolens.api.management_service import ManagementService
 from echolens.api.operations import OperationService
+from echolens.api.progress_operations import ProgressOperationService
 from echolens.api.service import FrontendService
 from echolens.storage.frontend_repository import FrontendRepository
 from echolens.storage.management_repository import ManagementRepository
@@ -39,6 +40,6 @@ def get_management_service(
 
 
 def get_operation_service() -> OperationService:
-    """Return the operation service; background jobs open their own connections."""
+    """Return the progress-aware service; background jobs open their own connections."""
 
-    return OperationService()
+    return ProgressOperationService()
