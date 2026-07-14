@@ -26,6 +26,7 @@ from echolens.api.models import (
     VideoDetail,
     VideoListResponse,
 )
+from echolens.api.queued_operations import JobQueueUnavailable
 from echolens.core.config import Settings
 
 
@@ -103,6 +104,7 @@ class FakeManagementRepository:
 class FakeOperationService:
     def __init__(self) -> None:
         self.created: list[tuple[str, dict, int | None]] = []
+        self.fail_submission = False
 
     @staticmethod
     def _job(job_id=1, job_type="scan", video_id=None, payload=None) -> ProcessingJob:
@@ -118,6 +120,8 @@ class FakeOperationService:
         )
 
     def create_job(self, job_type, payload, video_id=None) -> ProcessingJob:
+        if self.fail_submission:
+            raise JobQueueUnavailable("Redis operation queue is unavailable")
         self.created.append((job_type, payload, video_id))
         return self._job(
             job_id=7,
@@ -184,6 +188,20 @@ class FrontendApiRouteTests(unittest.TestCase):
             ["scan", "pipeline", "video_process"],
         )
         self.assertEqual(self.operation_service.created[2][2], 7)
+
+    def test_operation_queue_outage_returns_service_unavailable(self) -> None:
+        self.operation_service.fail_submission = True
+
+        response = self.client.post(
+            "/api/actions/pipeline",
+            json={"scan": False, "maxTasks": 1},
+        )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.json()["detail"],
+            "Redis operation queue is unavailable",
+        )
 
     def test_missing_video_action_is_rejected(self) -> None:
         response = self.client.post(
