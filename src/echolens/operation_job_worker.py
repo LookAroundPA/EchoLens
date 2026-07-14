@@ -66,11 +66,18 @@ class OperationJobWorker:
                 reserved.payload,
             )
             final_job = self.service.get_job(reserved.job_id)
-            completed = final_job is not None and final_job.status == JobStatus.succeeded
+            if final_job is None or final_job.status not in {
+                JobStatus.succeeded,
+                JobStatus.failed,
+            }:
+                raise RuntimeError(
+                    f"Operation job {reserved.job_id} did not reach a terminal status"
+                )
+
             self.queue.acknowledge(reserved.raw_payload)
             return OperationWorkerResult(
                 handled=True,
-                completed=completed,
+                completed=final_job.status == JobStatus.succeeded,
                 skipped=False,
                 job_id=reserved.job_id,
             )
