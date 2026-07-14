@@ -1,11 +1,11 @@
 """HTTP endpoint for processing multiple selected videos."""
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import Field, field_validator
 
 from echolens.api.dependencies import get_management_repository, get_operation_service
 from echolens.api.models import ApiModel, ProcessingJob, VideoProcessStage
-from echolens.api.operations import OperationService
+from echolens.api.queued_operations import QueuedOperationService
 from echolens.storage.management_repository import ManagementRepository
 
 
@@ -34,11 +34,10 @@ class BatchVideoProcessRequest(ApiModel):
 )
 def process_videos(
     request: BatchVideoProcessRequest,
-    background_tasks: BackgroundTasks,
     repository: ManagementRepository = Depends(get_management_repository),
-    service: OperationService = Depends(get_operation_service),
+    service: QueuedOperationService = Depends(get_operation_service),
 ) -> ProcessingJob:
-    """Create one serial task for selected videos and preserve per-video results."""
+    """Queue one serial task for selected videos and preserve per-video results."""
 
     missing_ids = [
         video_id
@@ -50,6 +49,4 @@ def process_videos(
         raise HTTPException(status_code=404, detail=f"Videos not found: {missing}")
 
     payload = request.model_dump(by_alias=True, mode="json")
-    job = service.create_job(job_type="video_batch", payload=payload)
-    background_tasks.add_task(service.run_job, job.id, "video_batch", payload)
-    return job
+    return service.create_job(job_type="video_batch", payload=payload)
