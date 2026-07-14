@@ -56,7 +56,7 @@ class SemanticQaTests(unittest.TestCase):
             {
                 "answer": "可以把重复劳动交给人工智能。[S1]",
                 "insufficient_evidence": False,
-                "used_source_ids": ["S1", "S99"],
+                "used_source_ids": ["S1"],
             }
         )
         settings = Settings(
@@ -96,6 +96,33 @@ class SemanticQaTests(unittest.TestCase):
         self.assertEqual(request["extra_body"], {"thinking": {"type": "enabled"}})
         self.assertEqual(request["reasoning_effort"], "high")
         self.assertNotIn("temperature", request)
+
+    def test_invalid_or_missing_citations_are_rejected(self) -> None:
+        invalid = DeepSeekKnowledgeAnswerer(
+            Settings(llm_api_key="test-key"),
+            client=FakeClient(
+                {
+                    "answer": "引用了不存在的来源。[S99]",
+                    "insufficient_evidence": False,
+                    "used_source_ids": ["S99"],
+                }
+            ),
+        )
+        missing = DeepSeekKnowledgeAnswerer(
+            Settings(llm_api_key="test-key"),
+            client=FakeClient(
+                {
+                    "answer": "给出了结论但没有来源。",
+                    "insufficient_evidence": False,
+                    "used_source_ids": [],
+                }
+            ),
+        )
+
+        with self.assertRaisesRegex(ValueError, "unavailable sources"):
+            invalid.answer("问题", [source()], thinking=False)
+        with self.assertRaisesRegex(ValueError, "without source citations"):
+            missing.answer("问题", [source()], thinking=False)
 
     def test_no_sources_refuses_without_calling_deepseek(self) -> None:
         client = FakeClient({})
