@@ -20,7 +20,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application = FastAPI(
         title="EchoLens API",
         description="Frontend API for browsing and operating the EchoLens content pipeline.",
-        version="0.6.0",
+        version="0.7.0",
     )
     application.add_middleware(
         CORSMiddleware,
