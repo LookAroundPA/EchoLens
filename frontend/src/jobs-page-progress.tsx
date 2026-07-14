@@ -31,15 +31,18 @@ function progressFromJob(job: ProcessingJob): ProgressData | null {
   const total = Number(value.total)
   const percent = Number(value.percent)
   if (![completed, total, percent].every(Number.isFinite)) return null
+  const currentVideoId = value.currentVideoId !== null
+    && value.currentVideoId !== undefined
+    && Number.isFinite(Number(value.currentVideoId))
+    ? Number(value.currentVideoId)
+    : null
   return {
     unit: typeof value.unit === 'string' ? value.unit : 'stage',
     completed,
     total,
     percent: Math.max(0, Math.min(100, percent)),
     currentStage: typeof value.currentStage === 'string' ? value.currentStage : null,
-    currentVideoId: Number.isFinite(Number(value.currentVideoId))
-      ? Number(value.currentVideoId)
-      : null,
+    currentVideoId,
   }
 }
 
