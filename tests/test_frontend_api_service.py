@@ -63,9 +63,12 @@ class FakeFrontendRepository:
             **self._video_row(),
             "audio_path": "/data/audio/douyin/creator-1/video-1.wav",
             "audio_size": 2048,
-            "transcript_text": "完整转写文本",
+            "transcript_text": "人工智能可以帮助学习者减少重复劳动",
             "segments_json": json.dumps(
-                [{"start": 0.0, "end": 1.5, "text": "第一段"}],
+                [
+                    {"start": 0.0, "end": 4.0, "text": "人工智能可以帮助学习者"},
+                    {"start": 4.0, "end": 8.0, "text": "减少重复劳动"},
+                ],
                 ensure_ascii=False,
             ),
             "language": "zh",
@@ -87,7 +90,15 @@ class FakeFrontendRepository:
             "updated_at": datetime(2026, 7, 13, 12, 0, 0),
             "summary": "视频摘要",
             "tags_json": json.dumps(["AI", "商业"], ensure_ascii=False),
-            "key_points_json": json.dumps(["观点一"], ensure_ascii=False),
+            "key_points_json": json.dumps(["人工智能帮助学习者减少重复劳动"], ensure_ascii=False),
+            "transcript_text": "视频先介绍背景，然后说明人工智能帮助学习。",
+            "segments_json": json.dumps(
+                [
+                    {"start": 0.0, "end": 3.0, "text": "视频先介绍背景"},
+                    {"start": 3.0, "end": 7.0, "text": "然后说明人工智能帮助学习"},
+                ],
+                ensure_ascii=False,
+            ),
         }
 
 
@@ -105,15 +116,29 @@ class FrontendApiServiceTests(unittest.TestCase):
         self.assertEqual(creators["items"][0]["secUid"], "creator-1")
         self.assertEqual(creators["items"][0]["topTags"], ["AI", "商业"])
 
-    def test_video_detail_contains_transcript_segments_and_audio_url(self) -> None:
+    def test_video_detail_contains_playable_key_point_evidence(self) -> None:
         detail = self.service.video_detail(7)
         assert detail is not None
         payload = detail.model_dump(by_alias=True)
 
-        self.assertEqual(payload["transcript"], "完整转写文本")
-        self.assertEqual(payload["segments"][0]["text"], "第一段")
+        self.assertEqual(payload["transcript"], "人工智能可以帮助学习者减少重复劳动")
+        self.assertEqual(payload["segments"][0]["text"], "人工智能可以帮助学习者")
         self.assertEqual(payload["audioUrl"], "/api/videos/7/audio")
         self.assertEqual(payload["transcriptionModel"], "large-v3")
+        self.assertEqual(payload["keyPointEvidence"][0]["segmentIndex"], 0)
+        self.assertEqual(payload["keyPointEvidence"][0]["end"], 8.0)
+
+    def test_search_result_contains_timestamped_match(self) -> None:
+        payload = self.service.search(
+            query="人工智能",
+            creator_sec_uid=None,
+            tag=None,
+            limit=20,
+        ).model_dump(by_alias=True)
+
+        self.assertEqual(payload["items"][0]["match"]["matchType"], "transcript")
+        self.assertEqual(payload["items"][0]["match"]["start"], 3.0)
+        self.assertEqual(payload["items"][0]["match"]["segmentIndex"], 1)
 
     def test_missing_creator_and_video_return_none(self) -> None:
         self.assertIsNone(self.service.creator_detail("missing", limit=20))
