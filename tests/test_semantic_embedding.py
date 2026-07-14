@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
 from types import ModuleType
 import unittest
 
@@ -28,24 +29,26 @@ class SemanticEmbeddingTests(unittest.TestCase):
         sys.modules["fastembed"] = fake_module
         FakeTextEmbedding.calls.clear()
         try:
-            settings = Settings(
-                semantic_model="fake-model",
-                semantic_model_cache_dir=Path("test-cache/fastembed"),
-            )
-            embedder = FastEmbedder(settings)
+            with TemporaryDirectory() as temporary:
+                cache_dir = Path(temporary) / "fastembed"
+                settings = Settings(
+                    semantic_model="fake-model",
+                    semantic_model_cache_dir=cache_dir,
+                )
+                embedder = FastEmbedder(settings)
 
-            vector = embedder.embed_query("测试问题")
+                vector = embedder.embed_query("测试问题")
 
-            self.assertEqual(vector, (0.6, 0.8))
-            self.assertEqual(
-                FakeTextEmbedding.calls,
-                [
-                    {
-                        "model_name": "fake-model",
-                        "cache_dir": "test-cache/fastembed",
-                    }
-                ],
-            )
+                self.assertEqual(vector, (0.6, 0.8))
+                self.assertEqual(
+                    FakeTextEmbedding.calls,
+                    [
+                        {
+                            "model_name": "fake-model",
+                            "cache_dir": str(cache_dir),
+                        }
+                    ],
+                )
         finally:
             if previous is None:
                 sys.modules.pop("fastembed", None)
