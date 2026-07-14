@@ -50,8 +50,8 @@ class CreatorProfileTests(unittest.TestCase):
             ),
             video_row(
                 7,
-                point="用人工智能减少日常重复工作",
-                segment_text="用人工智能减少日常重复工作",
+                point="人工智能减少重复劳动",
+                segment_text="人工智能减少重复劳动",
                 tags=["AI", "工作方法"],
                 created_at=1_710_000_000,
             ),
