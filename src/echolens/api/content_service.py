@@ -55,9 +55,20 @@ class ContentService:
         title = video.description or f"视频 {video.video_id}"
         analysis_state = "需要重新分析" if self.analysis_stale(video) else "当前"
         tags = "、".join(video.tags) if video.tags else "—"
-        key_points = "\n".join(
-            f"{index}. {point}" for index, point in enumerate(video.key_points, start=1)
-        ) or "暂无关键观点。"
+        evidence_by_point = {
+            item.key_point_index: item for item in video.key_point_evidence
+        }
+        key_point_lines: list[str] = []
+        for index, point in enumerate(video.key_points, start=1):
+            evidence = evidence_by_point.get(index - 1)
+            source = ""
+            if evidence is not None:
+                source = (
+                    f"（来源 {self._format_seconds(evidence.start)}"
+                    f"–{self._format_seconds(evidence.end)}）"
+                )
+            key_point_lines.append(f"{index}. {point}{source}")
+        key_points = "\n".join(key_point_lines) or "暂无关键观点。"
         transcript = video.transcript or "暂无转写文本。"
         segments = "\n".join(
             f"- {self._format_seconds(item.start)}–{self._format_seconds(item.end)} {item.text}"
