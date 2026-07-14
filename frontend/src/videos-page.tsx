@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from './api'
 import {
   EmptyState,
@@ -11,7 +11,7 @@ import {
   Panel,
   VideoCard,
 } from './components'
-import type { ProcessingJob, VideoProcessStage } from './types'
+import type { VideoProcessStage } from './types'
 import './videos-page.css'
 
 const videoStatuses = [
@@ -28,23 +28,33 @@ const videoStatuses = [
   'analysis_failed',
 ]
 
-type BatchFeedback = {
-  submitted: number
-  failedVideoIds: number[]
+const batchActionLabels: Record<VideoProcessStage, string> = {
+  current: '继续处理',
+  audio: '重新提取音频',
+  transcription: '重新转写',
+  analysis: '重新分析',
+}
+
+function confirmationMessage(stage: VideoProcessStage, count: number): string {
+  if (stage === 'transcription') {
+    return `将重新转写 ${count} 个视频，并重新生成后续分析结果。确认继续？`
+  }
+  if (stage === 'analysis') {
+    return `将重新分析 ${count} 个视频，并替换现有分析结果。确认继续？`
+  }
+  return `将根据当前状态继续处理 ${count} 个视频直到完成。确认继续？`
 }
 
 export function VideosPage() {
   const [params, setParams] = useSearchParams()
-  const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [q, setQ] = useState(params.get('q') ?? '')
   const [status, setStatus] = useState(params.get('status') ?? '')
   const [tag, setTag] = useState(params.get('tag') ?? '')
   const [creator, setCreator] = useState(params.get('creator') ?? '')
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
-  const [batchFeedback, setBatchFeedback] = useState<BatchFeedback | null>(null)
   const offset = Number(params.get('offset') ?? 0)
   const limit = 24
-  const selectionScope = params.toString()
   const active = {
     q: params.get('q') ?? undefined,
     creator: params.get('creator') ?? undefined,
@@ -53,48 +63,37 @@ export function VideosPage() {
     limit,
     offset,
   }
+  const selectionScope = [
+    active.q ?? '',
+    active.creator ?? '',
+    active.status ?? '',
+    active.tag ?? '',
+    String(offset),
+  ].join('\u0000')
+
   const videos = useQuery({ queryKey: ['videos', active], queryFn: () => api.videos(active) })
   const tags = useQuery({ queryKey: ['tags'], queryFn: () => api.tags(undefined, 100) })
   const creators = useQuery({
     queryKey: ['creators', 'video-filter'],
     queryFn: () => api.creators(undefined, 500),
   })
-  const batchProcess = useMutation({
-    mutationFn: async (stage: VideoProcessStage): Promise<BatchFeedback> => {
-      const videoIds = Array.from(selectedIds)
-      const results = await Promise.allSettled(
-        videoIds.map((videoId) => api.processVideo(videoId, { stage, continueToDone: true })),
-      )
-      const jobs: ProcessingJob[] = []
-      const failedVideoIds: number[] = []
-      let firstError: unknown = null
-
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
-          jobs.push(result.value)
-        } else {
-          failedVideoIds.push(videoIds[index])
-          firstError ??= result.reason
-        }
-      })
-
-      if (!jobs.length) {
-        throw firstError instanceof Error ? firstError : new Error('批量任务提交失败')
-      }
-
-      return { submitted: jobs.length, failedVideoIds }
-    },
-    onSuccess: (result) => {
-      setBatchFeedback(result)
+  const batch = useMutation({
+    mutationFn: ({
+      videoIds,
+      stage,
+    }: {
+      videoIds: number[]
+      stage: VideoProcessStage
+    }) => api.processVideos({ videoIds, stage, continueToDone: true }),
+    onSuccess: (job) => {
       setSelectedIds(new Set())
-      void queryClient.invalidateQueries({ queryKey: ['jobs'] })
+      navigate(`/jobs?focus=${job.id}`)
     },
   })
 
   useEffect(() => {
     setSelectedIds(new Set())
-    setBatchFeedback(null)
-    batchProcess.reset()
+    batch.reset()
   }, [selectionScope])
 
   const pageIds = videos.data?.items.map((video) => video.id) ?? []
@@ -117,7 +116,6 @@ export function VideosPage() {
       else next.add(videoId)
       return next
     })
-    setBatchFeedback(null)
   }
 
   function togglePage() {
@@ -127,18 +125,13 @@ export function VideosPage() {
       else pageIds.forEach((videoId) => next.add(videoId))
       return next
     })
-    setBatchFeedback(null)
   }
 
-  function submitBatch(stage: VideoProcessStage, actionLabel: string, consequence: string) {
-    const count = selectedIds.size
-    if (!count) return
-    const confirmed = window.confirm(
-      `确认对 ${count} 个视频执行“${actionLabel}”吗？\n\n${consequence}`,
-    )
-    if (!confirmed) return
-    setBatchFeedback(null)
-    batchProcess.mutate(stage)
+  function startBatch(stage: VideoProcessStage) {
+    const videoIds = Array.from(selectedIds)
+    if (!videoIds.length) return
+    if (!window.confirm(confirmationMessage(stage, videoIds.length))) return
+    batch.mutate({ videoIds, stage })
   }
 
   return (
@@ -202,7 +195,7 @@ export function VideosPage() {
       </Panel>
 
       {videos.isLoading ? <LoadingState /> : null}
-      {videos.isError ? <ErrorState error={videos.error} retry={() => videos.refetch()} /> : null}
+      {videos.isError ? <ErrorState error={videos.error} retry={() => { void videos.refetch() }} /> : null}
       {videos.data ? (
         <div className="page-stack">
           {videos.data.items.length ? (
@@ -216,55 +209,35 @@ export function VideosPage() {
                 <div className="batch-actions">
                   <button
                     className="button button-secondary"
-                    disabled={!selectedIds.size || batchProcess.isPending}
-                    onClick={() => submitBatch(
-                      'current',
-                      '继续处理',
-                      '系统会根据每个视频的当前状态继续执行，并尽可能处理到 done。',
-                    )}
+                    disabled={!selectedIds.size || batch.isPending}
+                    onClick={() => startBatch('current')}
                   >
-                    批量继续处理
+                    {batch.isPending ? '正在提交…' : `批量${batchActionLabels.current}`}
                   </button>
                   <button
                     className="button button-secondary"
-                    disabled={!selectedIds.size || batchProcess.isPending}
-                    onClick={() => submitBatch(
-                      'transcription',
-                      '重新转写',
-                      '现有转写和分析结果会被清除，然后重新转写并继续分析。',
-                    )}
+                    disabled={!selectedIds.size || batch.isPending}
+                    onClick={() => startBatch('transcription')}
                   >
-                    批量重新转写
+                    批量{batchActionLabels.transcription}
                   </button>
                   <button
                     className="button button-primary"
-                    disabled={!selectedIds.size || batchProcess.isPending}
-                    onClick={() => submitBatch(
-                      'analysis',
-                      '重新分析',
-                      '现有分析结果会被清除，并基于当前转写重新调用 DeepSeek。',
-                    )}
+                    disabled={!selectedIds.size || batch.isPending}
+                    onClick={() => startBatch('analysis')}
                   >
-                    {batchProcess.isPending ? '正在提交…' : '批量重新分析'}
+                    批量{batchActionLabels.analysis}
                   </button>
                 </div>
               </div>
-              <InlineError error={batchProcess.error} />
-              {batchFeedback ? (
-                <div className={batchFeedback.failedVideoIds.length ? 'batch-feedback batch-feedback-warning' : 'batch-feedback'}>
-                  <span>
-                    已创建 {batchFeedback.submitted} 个处理任务
-                    {batchFeedback.failedVideoIds.length
-                      ? `，${batchFeedback.failedVideoIds.length} 个视频提交失败：${batchFeedback.failedVideoIds.join('、')}`
-                      : '。'}
-                  </span>
-                  <Link className="text-link" to="/jobs?type=video_process">打开任务中心 →</Link>
-                </div>
-              ) : null}
+              <InlineError error={batch.error} />
             </Panel>
           ) : null}
 
-          <div className="result-line"><strong>{videos.data.total}</strong> 条结果</div>
+          <div className="result-line">
+            <strong>{videos.data.total}</strong> 条结果
+            {selectedIds.size ? <span> · 当前页已选择 {selectedIds.size} 条</span> : null}
+          </div>
           {videos.data.items.length ? (
             <div className="video-grid video-grid-selectable">
               {videos.data.items.map((video) => (
