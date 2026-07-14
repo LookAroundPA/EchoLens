@@ -1,0 +1,74 @@
+.batch-failure-section {
+  margin-bottom: 17px;
+  padding: 15px;
+  border: 1px solid rgba(255, 123, 134, .2);
+  border-radius: 13px;
+  background: rgba(255, 123, 134, .055);
+}
+
+.batch-failure-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.batch-failure-heading strong {
+  color: #ffb0b7;
+}
+
+.batch-failure-heading p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: .8rem;
+  line-height: 1.55;
+}
+
+.batch-failure-heading > span {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(255, 123, 134, .12);
+  color: #ffb0b7;
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+.batch-failure-list {
+  display: grid;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.batch-failure-item {
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(8, 12, 21, .36);
+}
+
+.batch-failure-item a {
+  color: var(--accent);
+  font-size: .8rem;
+  font-weight: 760;
+}
+
+.batch-failure-item p {
+  margin: 5px 0 0;
+  color: #e3a3aa;
+  font-size: .76rem;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+@media (max-width: 680px) {
+  .batch-failure-heading {
+    align-items: stretch;
+  }
+}
