@@ -91,6 +91,12 @@ class OperationService:
                         stage=VideoProcessStage(str(payload.get("stage", "current"))),
                         continue_to_done=bool(payload.get("continueToDone", True)),
                     )
+                elif job_type == "video_batch":
+                    result = self._run_video_batch(
+                        video_ids=[int(value) for value in payload.get("videoIds", [])],
+                        stage=VideoProcessStage(str(payload.get("stage", "current"))),
+                        continue_to_done=bool(payload.get("continueToDone", True)),
+                    )
                 else:
                     raise ValueError(f"Unsupported job type: {job_type}")
                 self._mark_succeeded(job_id, result)
@@ -186,6 +192,56 @@ class OperationService:
                 raise RuntimeError(analysis.error_message or "Analysis did not complete")
 
         return self._with_final_status(result, video_db_id)
+
+    def _run_video_batch(
+        self,
+        *,
+        video_ids: list[int],
+        stage: VideoProcessStage,
+        continue_to_done: bool,
+    ) -> dict[str, Any]:
+        """Process every selected video while preserving each individual outcome."""
+
+        if not video_ids:
+            raise ValueError("videoIds must contain at least one video")
+
+        completed = failed = 0
+        items: list[dict[str, Any]] = []
+        for video_id in video_ids:
+            try:
+                video_result = self._run_video_process(
+                    video_db_id=video_id,
+                    stage=stage,
+                    continue_to_done=continue_to_done,
+                )
+                completed += 1
+                items.append(
+                    {
+                        "videoId": video_id,
+                        "succeeded": True,
+                        "resolvedStage": video_result.get("resolvedStage"),
+                        "finalStatus": video_result.get("finalStatus"),
+                        "stages": video_result.get("stages", {}),
+                    }
+                )
+            except Exception as exc:
+                failed += 1
+                items.append(
+                    {
+                        "videoId": video_id,
+                        "succeeded": False,
+                        "error": str(exc),
+                    }
+                )
+
+        return {
+            "requestedStage": stage.value,
+            "continueToDone": continue_to_done,
+            "total": len(video_ids),
+            "completed": completed,
+            "failed": failed,
+            "items": items,
+        }
 
     def _run_audio_stage(self, limit: int | None) -> dict[str, int]:
         processed = completed = skipped = 0
