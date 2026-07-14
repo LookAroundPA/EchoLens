@@ -18,7 +18,7 @@ class JobRetryConflict(RuntimeError):
 class JobRetryService:
     """Create a new queued job from one failed frontend operation."""
 
-    _SUPPORTED_JOB_TYPES = {"scan", "pipeline", "video_process"}
+    _SUPPORTED_JOB_TYPES = {"scan", "pipeline", "video_process", "video_batch"}
 
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
