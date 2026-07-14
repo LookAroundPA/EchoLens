@@ -6,8 +6,7 @@ from fastapi import Depends
 
 from echolens.api.content_service import ContentService
 from echolens.api.management_service import ManagementService
-from echolens.api.operations import OperationService
-from echolens.api.progress_operations import ProgressOperationService
+from echolens.api.queued_operations import QueuedOperationService
 from echolens.api.service import FrontendService
 from echolens.storage.content_repository import ContentRepository
 from echolens.storage.frontend_repository import FrontendRepository
@@ -51,7 +50,7 @@ def get_management_service(
     return ManagementService(repository)
 
 
-def get_operation_service() -> OperationService:
-    """Return the progress-aware service; background jobs open their own connections."""
+def get_operation_service() -> QueuedOperationService:
+    """Create jobs in MySQL and submit them to the independent Redis worker."""
 
-    return ProgressOperationService()
+    return QueuedOperationService()
