@@ -148,6 +148,74 @@ export interface SearchResponse {
   total: number
 }
 
+export interface SemanticIndexStatus {
+  ready: boolean
+  model: string | null
+  videoCount: number
+  chunkCount: number
+  indexedAt: string | null
+  autoSync: boolean
+}
+
+export interface SemanticMatch {
+  sourceType: 'transcript' | 'analysis' | string
+  text: string
+  start: number | null
+  end: number | null
+  segmentIndex: number | null
+  segmentCount: number
+  score: number
+  semanticScore: number
+  keywordScore: number
+}
+
+export interface SemanticSearchHit extends VideoSummary {
+  match: SemanticMatch
+}
+
+export interface SemanticSearchResponse {
+  items: SemanticSearchHit[]
+  total: number
+  index: SemanticIndexStatus
+}
+
+export interface SemanticSyncRequest {
+  rebuild: boolean
+}
+
+export interface KnowledgeSource {
+  sourceId: string
+  videoId: number
+  platformVideoId: string
+  creatorSecUid: string
+  creatorName: string | null
+  title: string
+  publishedAt: string | null
+  sourceType: 'transcript' | 'analysis' | string
+  start: number | null
+  end: number | null
+  segmentIndex: number | null
+  segmentCount: number
+  text: string
+  score: number
+}
+
+export interface AskRequest {
+  question: string
+  creatorSecUid?: string
+  tag?: string
+  maxSources?: number
+  thinking: boolean
+}
+
+export interface AskResponse {
+  answer: string
+  insufficientEvidence: boolean
+  sources: KnowledgeSource[]
+  model: string | null
+  thinking: boolean
+}
+
 export interface ProcessingJob {
   id: number
   videoId: number | null
