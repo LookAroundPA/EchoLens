@@ -1,0 +1,96 @@
+.job-progress-card {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 30;
+  width: min(430px, calc(100vw - 32px));
+  padding: 18px;
+  border: 1px solid rgba(142, 166, 255, .28);
+  border-radius: 16px;
+  background: rgba(12, 17, 29, .94);
+  backdrop-filter: blur(22px);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, .42);
+}
+
+.job-progress-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.job-progress-heading > div {
+  display: grid;
+  gap: 4px;
+}
+
+.job-progress-heading span {
+  color: var(--accent);
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.job-progress-heading strong {
+  font-size: 1rem;
+}
+
+.job-progress-track {
+  height: 9px;
+  margin: 17px 0 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04);
+}
+
+.job-progress-track span {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #728aff, #92a9ff);
+  transition: width .25s ease;
+}
+
+.job-progress-meta {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 13px;
+}
+
+.job-progress-meta > strong {
+  color: #dce3ff;
+  font-size: 1.35rem;
+}
+
+.job-progress-meta p {
+  margin: 0;
+  color: #c2cada;
+  font-size: .8rem;
+  line-height: 1.55;
+}
+
+.job-progress-card > small {
+  display: block;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: .68rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 680px) {
+  .job-progress-card {
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .job-progress-meta {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+}
