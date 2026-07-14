@@ -11,7 +11,8 @@ import {
   PageHeader,
   Panel,
 } from './components'
-import type { JobStatus, ProcessingJob } from './types'
+import type { JobStatus, ProcessingJob, VideoProcessStage } from './types'
+import './jobs-page-failures.css'
 
 const jobStatuses: Array<JobStatus | ''> = ['', 'queued', 'running', 'succeeded', 'failed']
 const jobTypes = ['', 'scan', 'pipeline', 'video_process', 'video_batch']
@@ -38,6 +39,17 @@ const metricLabels: Record<string, string> = {
   requestedStage: '请求阶段',
   resolvedStage: '实际阶段',
   continueToDone: '继续到完成',
+}
+
+type BatchFailureItem = {
+  videoId: number
+  error: string
+}
+
+type BatchRetryPayload = {
+  videoIds: number[]
+  stage: VideoProcessStage
+  continueToDone: boolean
 }
 
 function displayMetric(value: unknown): string {
@@ -74,6 +86,7 @@ function jobStageEntries(job: ProcessingJob): Array<[string, unknown]> {
 function stageLabel(stage: string): string {
   const labels: Record<string, string> = {
     scan: '扫描与入队',
+    current: '根据当前状态继续',
     audio: '音频提取',
     transcription: '语音转写',
     analysis: '内容分析',
@@ -88,6 +101,52 @@ function jobTarget(job: ProcessingJob): string {
     return `${videoIds.length} 个视频`
   }
   return '全局任务'
+}
+
+function isVideoProcessStage(value: unknown): value is VideoProcessStage {
+  return value === 'current'
+    || value === 'audio'
+    || value === 'transcription'
+    || value === 'analysis'
+}
+
+function batchFailureItems(job: ProcessingJob): BatchFailureItem[] {
+  if (job.jobType !== 'video_batch' || !job.result) return []
+  const items = job.result.items
+  if (!Array.isArray(items)) return []
+
+  const failures: BatchFailureItem[] = []
+  for (const rawItem of items) {
+    if (!rawItem || typeof rawItem !== 'object' || Array.isArray(rawItem)) continue
+    const item = rawItem as Record<string, unknown>
+    if (item.succeeded !== false) continue
+    const videoId = Number(item.videoId)
+    if (!Number.isInteger(videoId) || videoId < 1) continue
+    failures.push({
+      videoId,
+      error: typeof item.error === 'string' && item.error.trim()
+        ? item.error.trim()
+        : '未提供错误原因',
+    })
+  }
+  return failures
+}
+
+function batchRetryPayload(job: ProcessingJob): BatchRetryPayload | null {
+  const failures = batchFailureItems(job)
+  if (!failures.length) return null
+
+  const rawStage = job.payload.stage ?? job.result?.requestedStage
+  const stage = isVideoProcessStage(rawStage) ? rawStage : 'current'
+  const continueToDone = typeof job.payload.continueToDone === 'boolean'
+    ? job.payload.continueToDone
+    : true
+
+  return {
+    videoIds: failures.map((item) => item.videoId),
+    stage,
+    continueToDone,
+  }
 }
 
 export function JobsPage() {
@@ -121,15 +180,22 @@ export function JobsPage() {
     },
   })
 
+  function focusCreatedJob(job: ProcessingJob) {
+    queryClient.setQueryData(['job', job.id], job)
+    void queryClient.invalidateQueries({ queryKey: ['jobs'] })
+    const next = new URLSearchParams(params)
+    next.set('focus', String(job.id))
+    setParams(next)
+  }
+
   const retryJob = useMutation({
     mutationFn: (jobId: number) => api.retryJob(jobId),
-    onSuccess: (job) => {
-      queryClient.setQueryData(['job', job.id], job)
-      void queryClient.invalidateQueries({ queryKey: ['jobs'] })
-      const next = new URLSearchParams(params)
-      next.set('focus', String(job.id))
-      setParams(next)
-    },
+    onSuccess: focusCreatedJob,
+  })
+
+  const retryBatchFailures = useMutation({
+    mutationFn: (payload: BatchRetryPayload) => api.processVideos(payload),
+    onSuccess: focusCreatedJob,
   })
 
   useEffect(() => {
@@ -158,12 +224,24 @@ export function JobsPage() {
     setParams(next)
   }
 
+  function retryFocusedBatchFailures() {
+    const job = focusedJob.data
+    if (!job) return
+    const payload = batchRetryPayload(job)
+    if (!payload) return
+    const confirmed = window.confirm(
+      `将按原任务阶段“${stageLabel(payload.stage)}”重新处理 ${payload.videoIds.length} 个失败视频。\n\n原任务和错误记录会保留，确认继续？`,
+    )
+    if (!confirmed) return
+    retryBatchFailures.mutate(payload)
+  }
+
   return (
     <>
       <PageHeader
         eyebrow="运行中心"
         title="处理任务"
-        description="查看扫描、完整 pipeline、单视频和批量处理的实时状态；失败任务可直接重新执行。"
+        description="查看扫描、完整 pipeline、单视频和批量处理的实时状态；失败任务或批量失败项可直接重新执行。"
         actions={(
           <button
             className="button button-secondary"
@@ -220,10 +298,12 @@ export function JobsPage() {
           job={focusedJob.data}
           close={closeFocusedJob}
           retry={() => retryJob.mutate(focusId)}
+          retryFailedItems={retryFocusedBatchFailures}
           isRetrying={retryJob.isPending}
+          isRetryingFailedItems={retryBatchFailures.isPending}
         />
       ) : null}
-      <InlineError error={retryJob.error} />
+      <InlineError error={retryJob.error || retryBatchFailures.error} />
 
       {jobs.isLoading ? <LoadingState /> : null}
       {jobs.isError ? <ErrorState error={jobs.error} retry={() => { void jobs.refetch() }} /> : null}
@@ -262,14 +342,19 @@ function JobDetail({
   job,
   close,
   retry,
+  retryFailedItems,
   isRetrying,
+  isRetryingFailedItems,
 }: {
   job: ProcessingJob
   close: () => void
   retry: () => void
+  retryFailedItems: () => void
   isRetrying: boolean
+  isRetryingFailedItems: boolean
 }) {
   const stages = jobStageEntries(job)
+  const failedItems = batchFailureItems(job)
   const resultMetrics = job.result
     ? metricEntries(job.result).filter(([key]) => key !== 'stages')
     : []
@@ -281,6 +366,17 @@ function JobDetail({
       title={`任务 #${job.id} · ${jobTypeLabels[job.jobType] ?? job.jobType}${retryLabel}`}
       action={(
         <div className="page-actions">
+          {job.status === 'succeeded' && failedItems.length ? (
+            <button
+              className="button button-primary"
+              onClick={retryFailedItems}
+              disabled={isRetryingFailedItems}
+            >
+              {isRetryingFailedItems
+                ? '正在提交…'
+                : `重试 ${failedItems.length} 个失败项`}
+            </button>
+          ) : null}
           {job.status === 'failed' ? (
             <button
               className="button button-primary"
@@ -308,6 +404,25 @@ function JobDetail({
       {job.errorMessage ? <p className="inline-error">{job.errorMessage}</p> : null}
       {job.status === 'failed' ? (
         <p className="muted">重试会保留当前失败记录，并创建一个新的排队任务。</p>
+      ) : null}
+      {failedItems.length ? (
+        <section className="batch-failure-section">
+          <div className="batch-failure-heading">
+            <div>
+              <strong>批量任务中的失败项</strong>
+              <p>只重试下列视频，不会重复处理本批次中已经成功的视频。</p>
+            </div>
+            <span>{failedItems.length}</span>
+          </div>
+          <div className="batch-failure-list">
+            {failedItems.map((item) => (
+              <article className="batch-failure-item" key={item.videoId}>
+                <Link to={`/videos/${item.videoId}`}>视频 #{item.videoId}</Link>
+                <p>{item.error}</p>
+              </article>
+            ))}
+          </div>
+        </section>
       ) : null}
       {(job.status === 'queued' || job.status === 'running') ? (
         <div className="job-running-note">
