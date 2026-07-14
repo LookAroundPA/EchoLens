@@ -8,8 +8,8 @@ import {
   NotFoundPage,
   SearchPage,
   VideoDetailPage,
-  VideosPage,
 } from './pages'
+import { VideosPage } from './videos-page'
 
 export default function App() {
   return (
