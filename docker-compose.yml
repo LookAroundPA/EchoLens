@@ -49,6 +49,7 @@ services:
       - "echolens_semantic_data:/data/semantic"
     ports:
       - "8000:8000"
+    restart: unless-stopped
     command: ["api", "--host", "0.0.0.0", "--port", "8000"]
 
   job-worker:
