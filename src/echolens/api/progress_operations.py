@@ -60,6 +60,20 @@ class ProgressOperationService(OperationService):
                         stage=VideoProcessStage(str(payload.get("stage", "current"))),
                         continue_to_done=bool(payload.get("continueToDone", True)),
                     )
+                elif job_type == "semantic_index":
+                    partial = {
+                        "progress": self._progress(
+                            unit="stage",
+                            completed=0,
+                            total=1,
+                            current_stage="semantic_index",
+                        )
+                    }
+                    self._mark_progress(job_id, partial)
+                    result = self._run_semantic_index(
+                        rebuild=bool(payload.get("rebuild", False))
+                    )
+                    result["progress"] = self._progress(unit="stage", completed=1, total=1)
                 else:
                     raise ValueError(f"Unsupported job type: {job_type}")
                 self._mark_succeeded(job_id, result)
