@@ -68,7 +68,7 @@ class FrontendRepository:
         cursor.execute(
             self._VIDEO_SUMMARY_SELECT
             + """
-              ORDER BY v.updated_at DESC, v.id DESC
+              ORDER BY COALESCE(v.source_create_time, 0) DESC, v.id DESC
               LIMIT %s
             """,
             (limit,),

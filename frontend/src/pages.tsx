@@ -214,7 +214,7 @@ export function DashboardPage() {
               </Panel>
             </div>
 
-            <Panel title="最近更新" description="最新进入或推进处理状态的视频" action={<Link className="text-link" to="/videos">查看全部</Link>}>
+            <Panel title="最近发布" description="按发布时间排列的最新视频" action={<Link className="text-link" to="/videos">查看全部</Link>}>
               {dashboard.data.recentVideos.length ? (
                 <div className="video-grid">
                   {dashboard.data.recentVideos.map((video) => <VideoCard key={video.id} video={video} />)}

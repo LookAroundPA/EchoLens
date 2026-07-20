@@ -12,6 +12,7 @@ import {
   TagPills,
   VideoCard,
 } from './components'
+import { OpinionTimeline } from './opinion-timeline'
 import type { CreatorPointSource, RepresentativeVideo } from './types'
 import './creator-detail-page.css'
 
@@ -95,6 +96,10 @@ export function CreatorDetailPage() {
       </section>
 
       <div className="page-stack creator-profile-stack">
+        <Panel title="观点时间线" description="按发布时间排布的视频观点轨迹，悬停查看分析摘要，可缩放与横向滚动。">
+          <OpinionTimeline videos={data.videos} />
+        </Panel>
+
         <Panel title="内容概览" description="根据现有摘要、标签和关键观点实时生成，不额外调用模型。">
           <p className="creator-overview">{profile.overview}</p>
         </Panel>

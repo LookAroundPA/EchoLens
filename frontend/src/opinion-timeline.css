@@ -1,0 +1,272 @@
+.opinion-timeline {
+  display: grid;
+  gap: 14px;
+}
+
+.opinion-timeline-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.opinion-timeline-hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.opinion-timeline-zoom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.opinion-timeline-zoom button {
+  min-width: 34px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: 0.16s ease;
+}
+
+.opinion-timeline-zoom button:hover {
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.opinion-timeline-zoom > span {
+  min-width: 46px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.opinion-timeline-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 8px 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 100% at 0% 0%, rgba(112, 137, 255, 0.05), transparent 60%),
+    rgba(8, 12, 21, 0.42);
+  scrollbar-color: rgba(135, 157, 255, 0.4) transparent;
+}
+
+.opinion-timeline-scroll::-webkit-scrollbar {
+  height: 10px;
+}
+
+.opinion-timeline-scroll::-webkit-scrollbar-thumb {
+  background: rgba(135, 157, 255, 0.32);
+  border-radius: 999px;
+}
+
+.opinion-timeline-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(135, 157, 255, 0.5);
+}
+
+.opinion-timeline-track {
+  position: relative;
+  height: 150px;
+  min-width: 100%;
+}
+
+.opinion-timeline-axis {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 78px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(135, 157, 255, 0.15), var(--accent) 40%, var(--accent-strong));
+  border-radius: 2px;
+}
+
+.opinion-timeline-axis::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: 50%;
+  width: 0;
+  height: 0;
+  transform: translateY(-50%);
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 10px solid var(--accent-strong);
+}
+
+.opinion-timeline-tick {
+  position: absolute;
+  top: 84px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.opinion-timeline-tick-mark {
+  width: 1px;
+  height: 8px;
+  background: var(--line-strong);
+}
+
+.opinion-timeline-tick-label {
+  color: var(--muted);
+  font-size: 0.68rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.opinion-timeline-point {
+  position: absolute;
+  top: 79px;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.opinion-timeline-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  box-shadow: 0 0 0 1px rgba(135, 157, 255, 0.4);
+  transition: 0.16s ease;
+}
+
+.opinion-timeline-point:hover {
+  z-index: 5;
+}
+
+.opinion-timeline-point:hover .opinion-timeline-dot {
+  transform: scale(1.5);
+  box-shadow: 0 0 0 4px rgba(135, 157, 255, 0.22);
+}
+
+.opinion-timeline-point.status--done .opinion-timeline-dot {
+  background: #51d69a;
+  box-shadow: 0 0 0 1px rgba(81, 214, 154, 0.45);
+}
+
+.opinion-timeline-point.status--done:hover .opinion-timeline-dot {
+  box-shadow: 0 0 0 4px rgba(81, 214, 154, 0.22);
+}
+
+.opinion-timeline-point.status--transcription_failed .opinion-timeline-dot,
+.opinion-timeline-point.status--analysis_failed .opinion-timeline-dot {
+  background: #ff7b86;
+  box-shadow: 0 0 0 1px rgba(255, 123, 134, 0.45);
+}
+
+.opinion-timeline-point.status--processing .opinion-timeline-dot,
+.opinion-timeline-point.status--transcribing .opinion-timeline-dot,
+.opinion-timeline-point.status--analyzing .opinion-timeline-dot {
+  background: #f0bf65;
+  box-shadow: 0 0 0 1px rgba(240, 191, 101, 0.45);
+}
+
+.opinion-timeline-tooltip {
+  position: fixed;
+  z-index: 60;
+  transform: translate(-50%, calc(-100% - 14px));
+  display: grid;
+  gap: 10px;
+  padding: 15px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: linear-gradient(165deg, rgba(24, 31, 49, 0.98), rgba(12, 17, 28, 0.99));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+  animation: opinion-tooltip-in 0.14s ease;
+}
+
+.opinion-timeline-tooltip--down {
+  transform: translate(-50%, 24px);
+}
+
+.opinion-timeline-tooltip::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 12px;
+  height: 12px;
+  transform: translateX(-50%) rotate(45deg);
+  background: rgba(12, 17, 28, 0.99);
+  border-right: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.opinion-timeline-tooltip--down::after {
+  bottom: auto;
+  top: -7px;
+  border-right: none;
+  border-bottom: none;
+  border-left: 1px solid var(--line-strong);
+  border-top: 1px solid var(--line-strong);
+}
+
+.opinion-timeline-tooltip-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.opinion-timeline-tooltip-head time {
+  color: var(--muted);
+  font-size: 0.7rem;
+  flex: 0 0 auto;
+}
+
+.opinion-timeline-tooltip h4 {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.opinion-timeline-tooltip p {
+  margin: 0;
+  color: #c3ccdc;
+  font-size: 0.79rem;
+  line-height: 1.62;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.opinion-timeline-tooltip-open {
+  color: var(--accent);
+  font-size: 0.74rem;
+  font-weight: 750;
+}
+
+@keyframes opinion-tooltip-in {
+  from { opacity: 0; transform: translate(-50%, calc(-100% - 6px)); }
+  to { opacity: 1; }
+}
+
+@media (max-width: 640px) {
+  .opinion-timeline-toolbar {
+    align-items: flex-start;
+  }
+}
