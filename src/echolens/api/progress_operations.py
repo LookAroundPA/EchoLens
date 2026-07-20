@@ -95,6 +95,7 @@ class ProgressOperationService(OperationService):
                 ("audio", lambda: self._run_audio_stage(max_tasks)),
                 ("transcription", lambda: self._run_transcription_stage(max_tasks)),
                 ("analysis", lambda: self._run_analysis_stage(max_tasks)),
+                ("semantic_index", lambda: self._run_semantic_index(rebuild=False)),
             ]
         )
 

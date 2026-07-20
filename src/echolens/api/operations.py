@@ -136,6 +136,7 @@ class OperationService:
         result["audio"] = self._run_audio_stage(max_tasks)
         result["transcription"] = self._run_transcription_stage(max_tasks)
         result["analysis"] = self._run_analysis_stage(max_tasks)
+        result["semantic_index"] = self._run_semantic_index(rebuild=False)
         return result
 
     def _run_video_process(

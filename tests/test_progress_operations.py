@@ -37,6 +37,9 @@ class FakeProgressOperationService(ProgressOperationService):
     def _run_analysis_stage(self, limit: int | None) -> dict:
         return {"processed": limit or 2, "completed": limit or 2, "failed": 0}
 
+    def _run_semantic_index(self, *, rebuild: bool) -> dict:
+        return {"discovered": 2, "indexed": 2, "skipped": 0, "removed": 0, "chunks": 4, "rebuilt": rebuild}
+
     def _execute_video_process(
         self,
         *,
@@ -65,11 +68,11 @@ class ProgressOperationTests(unittest.TestCase):
         progress = [event[1]["progress"] for event in service.events if event[0] == "progress"]
         self.assertEqual(
             [item["currentStage"] for item in progress],
-            ["scan", "audio", "transcription", "analysis"],
+            ["scan", "audio", "transcription", "analysis", "semantic_index"],
         )
         succeeded = next(event[1] for event in service.events if event[0] == "succeeded")
         self.assertEqual(succeeded["progress"]["percent"], 100)
-        self.assertEqual(succeeded["progress"]["completed"], 4)
+        self.assertEqual(succeeded["progress"]["completed"], 5)
 
     def test_batch_reports_current_video_and_keeps_partial_failures(self) -> None:
         service = FakeProgressOperationService()
