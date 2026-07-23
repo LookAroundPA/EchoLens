@@ -7,6 +7,7 @@ from echolens.cli.knowledge import knowledge_app
 from echolens.collector.local_ingest import LocalIngestService
 from echolens.collector.local_scanner import LocalSourceScanner
 from echolens.core.config import Settings, get_settings
+from echolens.intelligence.service import IntelligenceService
 from echolens.operation_job_worker import OperationJobWorker
 from echolens.storage.maintenance import DatabaseMaintenance
 from echolens.storage.mysql import mysql_connection
@@ -162,10 +163,18 @@ def migrate() -> None:
     """Apply idempotent MySQL schema upgrades required by this version."""
 
     with mysql_connection() as connection:
-        changed = DatabaseMaintenance(connection).ensure_market_insights_column()
+        maintenance = DatabaseMaintenance(connection)
+        market_column_added = maintenance.ensure_market_insights_column()
+        intelligence_tables = maintenance.ensure_intelligence_schema()
+
+    typer.echo("Database migration result:")
     typer.echo(
-        "Database migration result: "
-        + ("added analyses.market_insights_json" if changed else "schema already current")
+        "  analyses.market_insights_json: "
+        + ("added" if market_column_added else "already current")
+    )
+    typer.echo(
+        "  intelligence tables: "
+        + (", ".join(intelligence_tables) if intelligence_tables else "already current")
     )
 
 
@@ -208,6 +217,48 @@ def reanalyze(
     processed, completed, failed = _run_analysis_stage(settings, queued)
     typer.echo(
         f"Reanalysis result: processed={processed} completed={completed} failed={failed}"
+    )
+
+
+@app.command("rebuild-intelligence")
+def rebuild_intelligence(
+    limit: int | None = typer.Option(
+        default=None,
+        min=1,
+        help="Maximum historical analyses to index.",
+    ),
+    run: bool = typer.Option(
+        False,
+        "--run",
+        help="Build topics, creator opinion history, and opinion changes.",
+    ),
+) -> None:
+    """Rebuild investment-intelligence tables from stored market insights."""
+
+    with mysql_connection() as connection:
+        maintenance = DatabaseMaintenance(connection)
+        maintenance.ensure_market_insights_column()
+        maintenance.ensure_intelligence_schema()
+        service = IntelligenceService(connection)
+        candidates = service.count_rebuild_candidates()
+        if not run:
+            result = None
+        else:
+            result = service.rebuild(limit=limit)
+            connection.commit()
+
+    typer.echo(f"Intelligence rebuild candidates: {candidates}")
+    if not run:
+        typer.echo("Dry run only. Use --run to rebuild normalized intelligence tables.")
+        return
+    assert result is not None
+    typer.echo(
+        "Intelligence rebuild result: "
+        f"analyses_scanned={result.analyses_scanned} "
+        f"analyses_indexed={result.analyses_indexed} "
+        f"opinions_indexed={result.opinions_indexed} "
+        f"invalid_insights={result.invalid_insights} "
+        f"orphan_topics_removed={result.orphan_topics_removed}"
     )
 
 

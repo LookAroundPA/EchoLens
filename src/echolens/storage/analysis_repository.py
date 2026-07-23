@@ -7,6 +7,8 @@ from typing import Any
 from mysql.connector import MySQLConnection
 
 from echolens.analysis.models import AnalysisResult
+from echolens.intelligence.service import IntelligenceService
+from echolens.storage.maintenance import DatabaseMaintenance
 
 
 class AnalysisRepository:
@@ -73,8 +75,9 @@ class AnalysisRepository:
         return row
 
     def save_result(self, video_db_id: int, result: AnalysisResult, model_name: str) -> None:
-        """Upsert analysis output and mark the video done."""
+        """Upsert analysis output, index opinions, and mark the video done."""
 
+        DatabaseMaintenance(self.connection).ensure_intelligence_schema()
         now = datetime.now()
         cursor = self.connection.cursor()
         cursor.execute(
@@ -120,6 +123,7 @@ class AnalysisRepository:
             ("done", now, video_db_id),
         )
         cursor.close()
+        IntelligenceService(self.connection).index_video(video_db_id, result.market_insights)
 
     def mark_failed(self, video_db_id: int, error_message: str) -> None:
         """Record an analysis failure without automatic retry."""
