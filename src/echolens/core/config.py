@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     llm_model: str = "deepseek-v4-flash"
     llm_base_url: str = "https://api.deepseek.com"
     llm_temperature: float = Field(default=0.2, ge=0.0, le=2.0)
-    llm_max_tokens: int = Field(default=2048, ge=256)
+    llm_max_tokens: int = Field(default=8192, ge=256)
 
     qa_model: str = "deepseek-v4-pro"
     qa_temperature: float = Field(default=0.1, ge=0.0, le=2.0)

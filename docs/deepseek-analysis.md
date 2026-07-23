@@ -12,7 +12,7 @@ LLM_API_KEY=<your-api-key>
 LLM_MODEL=deepseek-v4-flash
 LLM_BASE_URL=https://api.deepseek.com
 LLM_TEMPERATURE=0.2
-LLM_MAX_TOKENS=2048
+LLM_MAX_TOKENS=8192
 ```
 
 API Key 只保存在本地 `.env`，不得提交到仓库。
