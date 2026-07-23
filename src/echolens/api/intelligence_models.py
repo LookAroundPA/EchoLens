@@ -108,6 +108,75 @@ class TopicOpinionChange(ApiModel):
     detected_at: datetime
 
 
+class CreatorIntelligenceIdentity(ApiModel):
+    id: int
+    platform: str
+    sec_uid: str
+    name: str | None = None
+
+
+class CreatorTopicOpinion(ApiModel):
+    id: int
+    topic: TopicSummary
+    video_id: int
+    platform_video_id: str
+    video_description: str | None = None
+    raw_subject: str
+    stance: str
+    source_type: str
+    time_horizon: str
+    confidence: str
+    conclusion: str
+    reasoning: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+    evidence_quote: str | None = None
+    published_at: datetime
+    change_type: str | None = None
+    change_summary: str | None = None
+
+
+class CreatorTopicHistorySummary(ApiModel):
+    topic: TopicSummary
+    opinion_count: int = 0
+    explicit_count: int = 0
+    inferred_count: int = 0
+    change_count: int = 0
+    current_stance: str
+    current_source_type: str
+    current_time_horizon: str
+    current_confidence: str
+    latest_conclusion: str
+    latest_evidence_quote: str | None = None
+    latest_opinion_id: int
+    latest_video_id: int
+    first_published_at: datetime
+    latest_published_at: datetime
+
+
+class CreatorIntelligenceChange(ApiModel):
+    id: int
+    topic: TopicSummary
+    current_opinion_id: int
+    current_video_id: int
+    change_type: str
+    previous_stance: str | None = None
+    current_stance: str
+    change_summary: str
+    detected_at: datetime
+
+
+class CreatorIntelligenceResponse(ApiModel):
+    creator: CreatorIntelligenceIdentity
+    topic_count: int = 0
+    opinion_count: int = 0
+    explicit_count: int = 0
+    inferred_count: int = 0
+    change_count: int = 0
+    topics: list[CreatorTopicHistorySummary] = Field(default_factory=list)
+    recent_opinions: list[CreatorTopicOpinion] = Field(default_factory=list)
+    recent_changes: list[CreatorIntelligenceChange] = Field(default_factory=list)
+
+
 class ReferenceAsset(ApiModel):
     id: int
     asset_type: str

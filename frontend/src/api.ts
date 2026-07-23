@@ -4,6 +4,7 @@ import type {
   AskResponse,
   BatchVideoProcessRequest,
   CreatorDetailResponse,
+  CreatorIntelligenceResponse,
   CreatorListResponse,
   DashboardResponse,
   JobFilters,
@@ -120,6 +121,11 @@ export const api = {
   topicHistory: (id: number, creator?: string, limit = 100, offset = 0) =>
     request<TopicHistoryResponse>(
       `/api/intelligence/topics/${id}/history${queryString({ creator, limit, offset })}`,
+    ),
+
+  creatorIntelligence: (secUid: string, topicLimit = 24, opinionLimit = 20, changeLimit = 20) =>
+    request<CreatorIntelligenceResponse>(
+      `/api/intelligence/creators/${encodeURIComponent(secUid)}${queryString({ topicLimit, opinionLimit, changeLimit })}`,
     ),
 
   referenceAssets: (type?: string, q?: string, limit = 100, offset = 0) =>

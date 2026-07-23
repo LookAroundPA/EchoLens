@@ -7,6 +7,11 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from echolens.api.intelligence_models import (
+    CreatorIntelligenceChange,
+    CreatorIntelligenceIdentity,
+    CreatorIntelligenceResponse,
+    CreatorTopicHistorySummary,
+    CreatorTopicOpinion,
     ReferenceAsset,
     TopicAssetMapping,
     TopicDetailResponse,
@@ -209,6 +214,79 @@ class IntelligenceApiService:
             total=total,
         )
 
+    def creator_intelligence(
+        self,
+        creator_sec_uid: str,
+        *,
+        topic_limit: int,
+        opinion_limit: int,
+        change_limit: int,
+    ) -> CreatorIntelligenceResponse | None:
+        creator_row = self.repository.get_creator(creator_sec_uid)
+        if creator_row is None:
+            return None
+        rows = self.repository.list_creator_opinions(creator_sec_uid)
+        changes = self.repository.list_creator_changes(creator_sec_uid)
+        rows_by_topic: dict[int, list[dict[str, Any]]] = defaultdict(list)
+        changes_by_topic: Counter[int] = Counter()
+        for row in rows:
+            rows_by_topic[int(row["topic_id"])].append(row)
+        for row in changes:
+            changes_by_topic[int(row["topic_id"])] += 1
+
+        topics: list[CreatorTopicHistorySummary] = []
+        for topic_rows in rows_by_topic.values():
+            latest = topic_rows[0]
+            topics.append(
+                CreatorTopicHistorySummary(
+                    topic=self._topic_from_intelligence_row(latest),
+                    opinion_count=len(topic_rows),
+                    explicit_count=sum(str(row["source_type"]) == "explicit" for row in topic_rows),
+                    inferred_count=sum(str(row["source_type"]) == "inferred" for row in topic_rows),
+                    change_count=changes_by_topic[int(latest["topic_id"])],
+                    current_stance=str(latest["stance"]),
+                    current_source_type=str(latest["source_type"]),
+                    current_time_horizon=str(latest["time_horizon"]),
+                    current_confidence=str(latest["confidence"]),
+                    latest_conclusion=str(latest["conclusion"]),
+                    latest_evidence_quote=latest.get("evidence_quote"),
+                    latest_opinion_id=int(latest["id"]),
+                    latest_video_id=int(latest["video_id"]),
+                    first_published_at=min(row["published_at"] for row in topic_rows),
+                    latest_published_at=max(row["published_at"] for row in topic_rows),
+                )
+            )
+        topics.sort(
+            key=lambda item: (
+                item.latest_published_at,
+                item.opinion_count,
+                item.topic.id,
+            ),
+            reverse=True,
+        )
+        explicit_count = sum(str(row["source_type"]) == "explicit" for row in rows)
+        inferred_count = sum(str(row["source_type"]) == "inferred" for row in rows)
+        return CreatorIntelligenceResponse(
+            creator=CreatorIntelligenceIdentity(
+                id=int(creator_row["id"]),
+                platform=str(creator_row["platform"]),
+                sec_uid=str(creator_row["sec_uid"]),
+                name=creator_row.get("creator_name"),
+            ),
+            topic_count=len(topics),
+            opinion_count=len(rows),
+            explicit_count=explicit_count,
+            inferred_count=inferred_count,
+            change_count=len(changes),
+            topics=topics[:topic_limit],
+            recent_opinions=[
+                self._creator_opinion_from_row(row) for row in rows[:opinion_limit]
+            ],
+            recent_changes=[
+                self._creator_change_from_row(row) for row in changes[:change_limit]
+            ],
+        )
+
     def _build_metrics(
         self,
         current_rows: list[dict[str, Any]],
@@ -336,6 +414,51 @@ class IntelligenceApiService:
             name=str(row["canonical_name"]),
             topic_type=str(row["topic_type"]),
             status=str(row["status"]),
+        )
+
+    @staticmethod
+    def _topic_from_intelligence_row(row: dict[str, Any]) -> TopicSummary:
+        return TopicSummary(
+            id=int(row["topic_id"]),
+            name=str(row["canonical_name"]),
+            topic_type=str(row["topic_type"]),
+            status=str(row["topic_status"]),
+        )
+
+    @classmethod
+    def _creator_opinion_from_row(cls, row: dict[str, Any]) -> CreatorTopicOpinion:
+        return CreatorTopicOpinion(
+            id=int(row["id"]),
+            topic=cls._topic_from_intelligence_row(row),
+            video_id=int(row["video_id"]),
+            platform_video_id=str(row["platform_video_id"]),
+            video_description=row.get("video_description"),
+            raw_subject=str(row["raw_subject"]),
+            stance=str(row["stance"]),
+            source_type=str(row["source_type"]),
+            time_horizon=str(row["time_horizon"]),
+            confidence=str(row["confidence"]),
+            conclusion=str(row["conclusion"]),
+            reasoning=json_string_list(row.get("reasoning_json")),
+            risks=json_string_list(row.get("risks_json")),
+            evidence_quote=row.get("evidence_quote"),
+            published_at=row["published_at"],
+            change_type=row.get("change_type"),
+            change_summary=row.get("change_summary"),
+        )
+
+    @classmethod
+    def _creator_change_from_row(cls, row: dict[str, Any]) -> CreatorIntelligenceChange:
+        return CreatorIntelligenceChange(
+            id=int(row["id"]),
+            topic=cls._topic_from_intelligence_row(row),
+            current_opinion_id=int(row["current_opinion_id"]),
+            current_video_id=int(row["current_video_id"]),
+            change_type=str(row["change_type"]),
+            previous_stance=row.get("previous_stance"),
+            current_stance=str(row["current_stance"]),
+            change_summary=str(row["change_summary"]),
+            detected_at=row["detected_at"],
         )
 
     @staticmethod

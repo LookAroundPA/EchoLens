@@ -8,6 +8,9 @@ from fastapi.testclient import TestClient
 from echolens.api.app import create_app
 from echolens.api.dependencies import get_intelligence_api_service
 from echolens.api.intelligence_models import (
+    CreatorIntelligenceIdentity,
+    CreatorIntelligenceResponse,
+    CreatorTopicHistorySummary,
     TopicDetailResponse,
     TopicHeatMetrics,
     TopicHistoryResponse,
@@ -23,6 +26,7 @@ class FakeIntelligenceApiService:
     def __init__(self) -> None:
         self.radar_args = None
         self.history_args = None
+        self.creator_args = None
 
     @staticmethod
     def _topic() -> TopicSummary:
@@ -100,6 +104,45 @@ class FakeIntelligenceApiService:
             total=1,
         )
 
+    def creator_intelligence(self, creator_sec_uid, **kwargs):
+        self.creator_args = {"creator_sec_uid": creator_sec_uid, **kwargs}
+        if creator_sec_uid == "missing":
+            return None
+        return CreatorIntelligenceResponse(
+            creator=CreatorIntelligenceIdentity(
+                id=3,
+                platform="douyin",
+                sec_uid=creator_sec_uid,
+                name="博主",
+            ),
+            topic_count=1,
+            opinion_count=2,
+            explicit_count=1,
+            inferred_count=1,
+            change_count=1,
+            topics=[
+                CreatorTopicHistorySummary(
+                    topic=self._topic(),
+                    opinion_count=2,
+                    explicit_count=1,
+                    inferred_count=1,
+                    change_count=1,
+                    current_stance="bullish",
+                    current_source_type="explicit",
+                    current_time_horizon="short_term",
+                    current_confidence="high",
+                    latest_conclusion="继续看多",
+                    latest_evidence_quote="产业趋势向上",
+                    latest_opinion_id=11,
+                    latest_video_id=9,
+                    first_published_at=datetime(2026, 7, 1),
+                    latest_published_at=datetime(2026, 7, 22),
+                )
+            ],
+            recent_opinions=[],
+            recent_changes=[],
+        )
+
 
 class IntelligenceApiRouteTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -158,16 +201,40 @@ class IntelligenceApiRouteTests(unittest.TestCase):
             },
         )
 
-    def test_missing_topic_and_invalid_window_are_rejected(self) -> None:
+    def test_creator_intelligence_contract(self) -> None:
+        response = self.client.get(
+            "/api/intelligence/creators/creator-1",
+            params={"topicLimit": 18, "opinionLimit": 12, "changeLimit": 8},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["creator"]["name"], "博主")
+        self.assertEqual(payload["topics"][0]["currentStance"], "bullish")
+        self.assertEqual(payload["topics"][0]["latestEvidenceQuote"], "产业趋势向上")
+        self.assertEqual(
+            self.service.creator_args,
+            {
+                "creator_sec_uid": "creator-1",
+                "topic_limit": 18,
+                "opinion_limit": 12,
+                "change_limit": 8,
+            },
+        )
+
+    def test_missing_topic_creator_and_invalid_window_are_rejected(self) -> None:
         missing = self.client.get("/api/intelligence/topics/999")
+        missing_creator = self.client.get("/api/intelligence/creators/missing")
         invalid = self.client.get("/api/intelligence/topics", params={"windowDays": 14})
 
         self.assertEqual(missing.status_code, 404)
+        self.assertEqual(missing_creator.status_code, 404)
         self.assertEqual(invalid.status_code, 422)
 
     def test_openapi_exposes_intelligence_paths(self) -> None:
         paths = self.client.get("/openapi.json").json()["paths"]
         self.assertIn("/api/intelligence/topics", paths)
+        self.assertIn("/api/intelligence/creators/{creator_sec_uid}", paths)
         self.assertIn("/api/intelligence/topics/{topic_id}", paths)
         self.assertIn("/api/intelligence/topics/{topic_id}/history", paths)
 

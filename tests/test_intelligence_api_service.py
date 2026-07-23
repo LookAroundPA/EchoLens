@@ -121,6 +121,118 @@ class FakeIntelligenceQueryRepository:
     def list_topic_changes(self, topic_id, **kwargs):
         return []
 
+    def get_creator(self, creator_sec_uid):
+        if creator_sec_uid == "missing":
+            return None
+        return {
+            "id": 1,
+            "platform": "douyin",
+            "sec_uid": creator_sec_uid,
+            "creator_name": "测试博主",
+        }
+
+    def list_creator_opinions(self, creator_sec_uid):
+        return [
+            {
+                "id": 12,
+                "topic_id": 1,
+                "canonical_name": "人工智能",
+                "topic_type": "industry",
+                "topic_status": "active",
+                "video_id": 22,
+                "platform_video_id": "video-22",
+                "video_description": "AI 行业更新",
+                "raw_subject": "AI产业",
+                "stance": "bullish",
+                "source_type": "explicit",
+                "time_horizon": "medium_term",
+                "confidence": "high",
+                "conclusion": "继续看好产业趋势",
+                "reasoning_json": '["需求增长"]',
+                "risks_json": '["估值偏高"]',
+                "evidence_quote": "产业趋势仍然向上",
+                "published_at": datetime(2026, 7, 22),
+                "change_type": "strengthened",
+                "change_summary": "由谨慎转为看多",
+            },
+            {
+                "id": 11,
+                "topic_id": 1,
+                "canonical_name": "人工智能",
+                "topic_type": "industry",
+                "topic_status": "active",
+                "video_id": 21,
+                "platform_video_id": "video-21",
+                "video_description": "AI 估值讨论",
+                "raw_subject": "人工智能",
+                "stance": "cautious",
+                "source_type": "inferred",
+                "time_horizon": "short_term",
+                "confidence": "medium",
+                "conclusion": "短期注意估值",
+                "reasoning_json": "[]",
+                "risks_json": "[]",
+                "evidence_quote": None,
+                "published_at": datetime(2026, 7, 10),
+                "change_type": "first_attention",
+                "change_summary": "首次关注人工智能",
+            },
+            {
+                "id": 10,
+                "topic_id": 2,
+                "canonical_name": "黄金",
+                "topic_type": "commodity",
+                "topic_status": "pending",
+                "video_id": 20,
+                "platform_video_id": "video-20",
+                "video_description": "黄金观点",
+                "raw_subject": "黄金",
+                "stance": "neutral",
+                "source_type": "explicit",
+                "time_horizon": "long_term",
+                "confidence": "medium",
+                "conclusion": "长期中性",
+                "reasoning_json": "[]",
+                "risks_json": "[]",
+                "evidence_quote": "当前位置保持观察",
+                "published_at": datetime(2026, 7, 1),
+                "change_type": "first_attention",
+                "change_summary": "首次关注黄金",
+            },
+        ]
+
+    def list_creator_changes(self, creator_sec_uid):
+        return [
+            {
+                "id": 40,
+                "topic_id": 1,
+                "canonical_name": "人工智能",
+                "topic_type": "industry",
+                "topic_status": "active",
+                "current_opinion_id": 12,
+                "current_video_id": 22,
+                "change_type": "strengthened",
+                "previous_stance": "cautious",
+                "current_stance": "bullish",
+                "change_summary": "由谨慎转为看多",
+                "detected_at": datetime(2026, 7, 22),
+            },
+            {
+                "id": 39,
+                "topic_id": 2,
+                "canonical_name": "黄金",
+                "topic_type": "commodity",
+                "topic_status": "pending",
+                "current_opinion_id": 10,
+                "current_video_id": 20,
+                "change_type": "first_attention",
+                "previous_stance": None,
+                "current_stance": "neutral",
+                "change_summary": "首次关注黄金",
+                "detected_at": datetime(2026, 7, 1),
+            },
+        ]
+
 
 class IntelligenceApiServiceTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -187,13 +299,45 @@ class IntelligenceApiServiceTests(unittest.TestCase):
         self.assertEqual(detail.metrics.opinion_count, 0)
         self.assertEqual(detail.metrics.heat_score, 0.0)
 
-    def test_missing_topic_returns_none(self) -> None:
+    def test_creator_intelligence_summarizes_topics_and_traceable_changes(self) -> None:
+        response = self.service.creator_intelligence(
+            "creator-1",
+            topic_limit=1,
+            opinion_limit=2,
+            change_limit=1,
+        )
+
+        self.assertIsNotNone(response)
+        assert response is not None
+        self.assertEqual(response.creator.name, "测试博主")
+        self.assertEqual(response.topic_count, 2)
+        self.assertEqual(len(response.topics), 1)
+        self.assertEqual(response.opinion_count, 3)
+        self.assertEqual(response.explicit_count, 2)
+        self.assertEqual(response.inferred_count, 1)
+        self.assertEqual(response.change_count, 2)
+        self.assertEqual(response.topics[0].topic.name, "人工智能")
+        self.assertEqual(response.topics[0].current_stance, "bullish")
+        self.assertEqual(response.topics[0].opinion_count, 2)
+        self.assertEqual(response.topics[0].change_count, 1)
+        self.assertEqual(response.recent_opinions[0].evidence_quote, "产业趋势仍然向上")
+        self.assertEqual(response.recent_changes[0].previous_stance, "cautious")
+
+    def test_missing_topic_or_creator_returns_none(self) -> None:
         self.assertIsNone(
             self.service.topic_history(
                 999,
                 creator_sec_uid=None,
                 limit=20,
                 offset=0,
+            )
+        )
+        self.assertIsNone(
+            self.service.creator_intelligence(
+                "missing",
+                topic_limit=24,
+                opinion_limit=20,
+                change_limit=20,
             )
         )
 

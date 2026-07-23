@@ -12,6 +12,7 @@ import {
   TagPills,
   VideoCard,
 } from './components'
+import { CreatorIntelligencePanel } from './creator-intelligence-panel'
 import { OpinionTimeline } from './opinion-timeline'
 import type { CreatorPointSource, RepresentativeVideo } from './types'
 import './creator-detail-page.css'
@@ -87,6 +88,8 @@ export function CreatorDetailPage() {
           </>
         )}
       />
+
+      <CreatorIntelligencePanel secUid={data.creator.secUid} />
 
       <section className="stats-grid creator-profile-stats">
         <StatCard label="视频总数" value={data.creator.videoCount} hint="严格按 sec_uid 聚合" />

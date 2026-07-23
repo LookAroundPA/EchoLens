@@ -8,6 +8,7 @@ from echolens.api.dependencies import (
 )
 from echolens.api.intelligence_models import (
     AssetType,
+    CreatorIntelligenceResponse,
     ReferenceAsset,
     ReferenceAssetCreateRequest,
     ReferenceAssetListResponse,
@@ -52,6 +53,27 @@ def topic_radar(
         trend_filter=trend,
         limit=limit,
     )
+
+
+@router.get("/creators/{creator_sec_uid}", response_model=CreatorIntelligenceResponse)
+def creator_intelligence(
+    creator_sec_uid: str,
+    topic_limit: int = Query(default=24, ge=1, le=100, alias="topicLimit"),
+    opinion_limit: int = Query(default=20, ge=1, le=100, alias="opinionLimit"),
+    change_limit: int = Query(default=20, ge=1, le=100, alias="changeLimit"),
+    service: IntelligenceApiService = Depends(get_intelligence_api_service),
+) -> CreatorIntelligenceResponse:
+    """Return normalized topic history, current stances, changes, and evidence for one creator."""
+
+    result = service.creator_intelligence(
+        creator_sec_uid,
+        topic_limit=topic_limit,
+        opinion_limit=opinion_limit,
+        change_limit=change_limit,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Creator not found")
+    return result
 
 
 @router.get("/topic-review", response_model=TopicReviewListResponse)

@@ -33,6 +33,96 @@ class IntelligenceQueryRepository:
         cursor.close()
         return row
 
+    def get_creator(self, creator_sec_uid: str) -> dict[str, Any] | None:
+        cursor = self.connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT id, platform, sec_uid, creator_name
+            FROM creators
+            WHERE sec_uid = %s
+            LIMIT 1
+            """,
+            (creator_sec_uid,),
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        return row
+
+    def list_creator_opinions(self, creator_sec_uid: str) -> list[dict[str, Any]]:
+        cursor = self.connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT
+                o.id,
+                o.topic_id,
+                t.canonical_name,
+                t.topic_type,
+                t.status AS topic_status,
+                o.video_id,
+                v.video_id AS platform_video_id,
+                v.description AS video_description,
+                o.raw_subject,
+                o.stance,
+                o.source_type,
+                o.time_horizon,
+                o.confidence,
+                o.conclusion,
+                o.reasoning_json,
+                o.risks_json,
+                o.evidence_quote,
+                o.published_at,
+                oc.change_type,
+                oc.change_summary
+            FROM creator_topic_opinions AS o
+            INNER JOIN creators AS c ON c.id = o.creator_id
+            INNER JOIN topics AS t ON t.id = o.topic_id
+            INNER JOIN videos AS v ON v.id = o.video_id
+            LEFT JOIN opinion_changes AS oc ON oc.current_opinion_id = o.id
+            WHERE c.sec_uid = %s
+              AND t.status <> 'archived'
+              AND v.status = 'done'
+            ORDER BY o.published_at DESC, o.id DESC
+            """,
+            (creator_sec_uid,),
+        )
+        rows = list(cursor.fetchall())
+        cursor.close()
+        return rows
+
+    def list_creator_changes(self, creator_sec_uid: str) -> list[dict[str, Any]]:
+        cursor = self.connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT
+                oc.id,
+                oc.topic_id,
+                t.canonical_name,
+                t.topic_type,
+                t.status AS topic_status,
+                oc.current_opinion_id,
+                current_opinion.video_id AS current_video_id,
+                oc.change_type,
+                oc.previous_stance,
+                oc.current_stance,
+                oc.change_summary,
+                oc.detected_at
+            FROM opinion_changes AS oc
+            INNER JOIN creators AS c ON c.id = oc.creator_id
+            INNER JOIN topics AS t ON t.id = oc.topic_id
+            INNER JOIN creator_topic_opinions AS current_opinion
+                ON current_opinion.id = oc.current_opinion_id
+            INNER JOIN videos AS v ON v.id = current_opinion.video_id
+            WHERE c.sec_uid = %s
+              AND t.status <> 'archived'
+              AND v.status = 'done'
+            ORDER BY oc.detected_at DESC, oc.id DESC
+            """,
+            (creator_sec_uid,),
+        )
+        rows = list(cursor.fetchall())
+        cursor.close()
+        return rows
+
     def list_aliases(self, topic_id: int) -> list[str]:
         cursor = self.connection.cursor(dictionary=True)
         cursor.execute(

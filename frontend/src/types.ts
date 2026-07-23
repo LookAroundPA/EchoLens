@@ -142,6 +142,75 @@ export interface TopicOpinionChange {
   detectedAt: string
 }
 
+export interface CreatorIntelligenceIdentity {
+  id: number
+  platform: string
+  secUid: string
+  name: string | null
+}
+
+export interface CreatorTopicOpinion {
+  id: number
+  topic: TopicSummary
+  videoId: number
+  platformVideoId: string
+  videoDescription: string | null
+  rawSubject: string
+  stance: MarketStance | string
+  sourceType: 'explicit' | 'inferred' | string
+  timeHorizon: string
+  confidence: string
+  conclusion: string
+  reasoning: string[]
+  risks: string[]
+  evidenceQuote: string | null
+  publishedAt: string
+  changeType: string | null
+  changeSummary: string | null
+}
+
+export interface CreatorTopicHistorySummary {
+  topic: TopicSummary
+  opinionCount: number
+  explicitCount: number
+  inferredCount: number
+  changeCount: number
+  currentStance: MarketStance | string
+  currentSourceType: string
+  currentTimeHorizon: string
+  currentConfidence: string
+  latestConclusion: string
+  latestEvidenceQuote: string | null
+  latestOpinionId: number
+  latestVideoId: number
+  firstPublishedAt: string
+  latestPublishedAt: string
+}
+
+export interface CreatorIntelligenceChange {
+  id: number
+  topic: TopicSummary
+  currentOpinionId: number
+  currentVideoId: number
+  changeType: string
+  previousStance: string | null
+  currentStance: MarketStance | string
+  changeSummary: string
+  detectedAt: string
+}
+
+export interface CreatorIntelligenceResponse {
+  creator: CreatorIntelligenceIdentity
+  topicCount: number
+  opinionCount: number
+  explicitCount: number
+  inferredCount: number
+  changeCount: number
+  topics: CreatorTopicHistorySummary[]
+  recentOpinions: CreatorTopicOpinion[]
+  recentChanges: CreatorIntelligenceChange[]
+}
+
 export interface ReferenceAsset {
   id: number
   assetType: AssetType | string
