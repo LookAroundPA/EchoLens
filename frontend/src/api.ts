@@ -15,6 +15,10 @@ import type {
   SemanticSearchResponse,
   SemanticSyncRequest,
   TagListResponse,
+  TopicDetailResponse,
+  TopicHistoryResponse,
+  TopicRadarFilters,
+  TopicRadarResponse,
   TranscriptUpdateRequest,
   VideoDetail,
   VideoFilters,
@@ -85,6 +89,27 @@ async function getVideo(id: number): Promise<VideoDetail> {
 export const api = {
   health: () => request<{ status: string }>('/health'),
   dashboard: () => request<DashboardResponse>('/api/dashboard'),
+
+  topicRadar: (filters: TopicRadarFilters = {}) =>
+    request<TopicRadarResponse>(
+      `/api/intelligence/topics${queryString({
+        windowDays: filters.windowDays ?? 7,
+        status: filters.status ?? 'all',
+        type: filters.topicType,
+        trend: filters.trend ?? 'all',
+        limit: filters.limit ?? 100,
+      })}`,
+    ),
+
+  topic: (id: number, windowDays: 7 | 30 = 30, opinionLimit = 50) =>
+    request<TopicDetailResponse>(
+      `/api/intelligence/topics/${id}${queryString({ windowDays, opinionLimit })}`,
+    ),
+
+  topicHistory: (id: number, creator?: string, limit = 100, offset = 0) =>
+    request<TopicHistoryResponse>(
+      `/api/intelligence/topics/${id}/history${queryString({ creator, limit, offset })}`,
+    ),
 
   creators: (q?: string, limit = 100) =>
     request<CreatorListResponse>(`/api/creators${queryString({ q, limit })}`),

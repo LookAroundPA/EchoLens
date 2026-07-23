@@ -13,6 +13,12 @@ export type VideoStatus =
 
 export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed'
 export type VideoProcessStage = 'current' | 'audio' | 'transcription' | 'analysis'
+export type TopicType = 'stock' | 'industry' | 'index' | 'commodity' | 'currency' | 'macro' | 'market'
+export type TopicStatus = 'active' | 'pending' | 'archived' | string
+export type TopicStatusFilter = 'all' | 'active' | 'pending'
+export type TopicTrend = 'new' | 'rising' | 'stable' | 'falling'
+export type TopicTrendFilter = 'all' | TopicTrend
+export type DominantStance = 'bullish' | 'bearish' | 'cautious' | 'neutral' | 'unclear' | 'mixed'
 
 export interface TagCount {
   tag: string
@@ -49,6 +55,111 @@ export interface MarketInsight {
   reasoning: string[]
   risks: string[]
   evidenceQuote: string | null
+}
+
+export interface TopicSummary {
+  id: number
+  name: string
+  topicType: TopicType | string
+  status: TopicStatus
+}
+
+export interface TopicHeatMetrics {
+  windowDays: 7 | 30 | number
+  opinionCount: number
+  creatorCount: number
+  explicitCount: number
+  inferredCount: number
+  changeCount: number
+  stanceCounts: Record<string, number>
+  bullishRatio: number
+  bearishRatio: number
+  cautiousRatio: number
+  neutralRatio: number
+  unclearRatio: number
+  dominantStance: DominantStance
+  consensusRatio: number
+  weightedMentions: number
+  heatComponents: Record<string, number>
+  heatScore: number
+  previousHeatScore: number
+  heatChange: number
+  trend: TopicTrend
+}
+
+export interface TopicRadarItem {
+  topic: TopicSummary
+  metrics: TopicHeatMetrics
+  latestPublishedAt: string | null
+}
+
+export interface TopicRadarResponse {
+  windowDays: number
+  generatedAt: string
+  items: TopicRadarItem[]
+  total: number
+}
+
+export interface TopicOpinion {
+  id: number
+  topicId: number
+  creatorId: number
+  creatorPlatform: string
+  creatorSecUid: string
+  creatorName: string | null
+  videoId: number
+  platformVideoId: string
+  videoDescription: string | null
+  rawSubject: string
+  stance: MarketStance | string
+  sourceType: 'explicit' | 'inferred' | string
+  timeHorizon: string
+  confidence: string
+  conclusion: string
+  reasoning: string[]
+  risks: string[]
+  evidenceQuote: string | null
+  publishedAt: string
+  changeType: string | null
+  changeSummary: string | null
+}
+
+export interface TopicOpinionChange {
+  id: number
+  topicId: number
+  creatorId: number
+  creatorPlatform: string
+  creatorSecUid: string
+  creatorName: string | null
+  currentOpinionId: number
+  currentVideoId: number
+  changeType: string
+  previousStance: string | null
+  currentStance: string
+  changeSummary: string
+  detectedAt: string
+}
+
+export interface TopicDetailResponse {
+  topic: TopicSummary
+  aliases: string[]
+  metrics: TopicHeatMetrics
+  latestOpinions: TopicOpinion[]
+  recentChanges: TopicOpinionChange[]
+}
+
+export interface TopicHistoryResponse {
+  topic: TopicSummary
+  items: TopicOpinion[]
+  total: number
+}
+
+export interface TopicRadarFilters {
+  windowDays?: 7 | 30
+  status?: TopicStatusFilter
+  topicType?: TopicType
+  trend?: TopicTrendFilter
+  limit?: number
 }
 
 export interface VideoSummary {

@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import { Link, NavLink, useLocation } from 'react-router-dom'
 import { api, formatDate } from './api'
 import type { JobStatus, TagCount, VideoStatus, VideoSummary } from './types'
 
 const navItems = [
-  { to: '/', label: '总览', mark: '◫' },
+  { to: '/', label: '市场雷达', mark: '◉' },
+  { to: '/operations', label: '运行中心', mark: '◫' },
   { to: '/videos', label: '视频', mark: '▶' },
   { to: '/creators', label: '创作者', mark: '◎' },
   { to: '/search', label: '搜索', mark: '⌕' },
@@ -14,6 +15,7 @@ const navItems = [
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const location = useLocation()
   const health = useQuery({
     queryKey: ['health'],
     queryFn: api.health,
@@ -39,7 +41,10 @@ export function AppShell({ children }: { children: ReactNode }) {
               key={item.to}
               to={item.to}
               end={item.to === '/'}
-              className={({ isActive }) => `nav-item${isActive ? ' is-active' : ''}`}
+              className={({ isActive }) => {
+                const radarTopicActive = item.to === '/' && location.pathname.startsWith('/topics/')
+                return `nav-item${isActive || radarTopicActive ? ' is-active' : ''}`
+              }}
             >
               <span className="nav-mark" aria-hidden="true">{item.mark}</span>
               {item.label}
