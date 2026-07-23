@@ -64,3 +64,16 @@ CREATE TABLE IF NOT EXISTS opinion_changes (
     KEY idx_opinion_changes_creator_topic_time (creator_id, topic_id, detected_at),
     KEY idx_opinion_changes_topic_time (topic_id, detected_at)
 );
+
+CREATE TABLE IF NOT EXISTS topic_merge_history (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    source_topic_id BIGINT UNSIGNED NOT NULL,
+    target_topic_id BIGINT UNSIGNED NOT NULL,
+    source_name VARCHAR(255) NOT NULL,
+    target_name VARCHAR(255) NOT NULL,
+    source_aliases_json JSON NULL,
+    moved_opinion_count INT UNSIGNED NOT NULL DEFAULT 0,
+    merged_at DATETIME NOT NULL,
+    KEY idx_topic_merge_history_source (source_topic_id),
+    KEY idx_topic_merge_history_target_time (target_topic_id, merged_at)
+);

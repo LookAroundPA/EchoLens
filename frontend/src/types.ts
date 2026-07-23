@@ -162,6 +162,42 @@ export interface TopicRadarFilters {
   limit?: number
 }
 
+export interface TopicReviewItem {
+  topic: TopicSummary
+  aliases: string[]
+  opinionCount: number
+  creatorCount: number
+  latestPublishedAt: string | null
+}
+
+export interface TopicReviewListResponse {
+  items: TopicReviewItem[]
+  total: number
+}
+
+export interface TopicReviewFilters {
+  status?: TopicStatusFilter
+  topicType?: TopicType
+  q?: string
+  limit?: number
+  offset?: number
+}
+
+export interface TopicUpdateRequest {
+  canonicalName: string
+  status: 'active' | 'pending'
+}
+
+export interface TopicAliasCreateRequest {
+  alias: string
+}
+
+export interface TopicMergeResponse {
+  sourceTopicId: number
+  movedOpinionCount: number
+  target: TopicReviewItem
+}
+
 export interface VideoSummary {
   id: number
   platform: string

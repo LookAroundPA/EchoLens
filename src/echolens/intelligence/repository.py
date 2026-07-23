@@ -66,8 +66,13 @@ class IntelligenceRepository:
         self._delete_stale_opinions(stale_ids)
 
         for pair_creator_id, pair_topic_id in sorted(affected_pairs):
-            self._rebuild_change_history(pair_creator_id, pair_topic_id)
+            self.rebuild_change_history(pair_creator_id, pair_topic_id)
         return len(insights)
+
+    def rebuild_change_history(self, creator_id: int, topic_id: int) -> None:
+        """Recompute one creator-topic change timeline after manual topic maintenance."""
+
+        self._rebuild_change_history(creator_id, topic_id)
 
     def _get_analysis_context(self, video_db_id: int) -> dict[str, Any] | None:
         cursor = self.connection.cursor(dictionary=True)

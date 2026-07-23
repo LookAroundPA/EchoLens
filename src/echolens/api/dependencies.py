@@ -6,6 +6,7 @@ from functools import lru_cache
 from fastapi import Depends
 
 from echolens.api.content_service import ContentService
+from echolens.api.intelligence_management_service import IntelligenceManagementService
 from echolens.api.intelligence_service import IntelligenceApiService
 from echolens.api.knowledge_service import KnowledgeService
 from echolens.api.management_service import ManagementService
@@ -13,7 +14,11 @@ from echolens.api.queued_operations import QueuedOperationService
 from echolens.api.service import FrontendService
 from echolens.storage.content_repository import ContentRepository
 from echolens.storage.frontend_repository import FrontendRepository
+from echolens.storage.intelligence_management_repository import (
+    IntelligenceManagementRepository,
+)
 from echolens.storage.intelligence_query_repository import IntelligenceQueryRepository
+from echolens.storage.maintenance import DatabaseMaintenance
 from echolens.storage.management_repository import ManagementRepository
 from echolens.storage.mysql import mysql_connection
 
@@ -65,6 +70,14 @@ def get_intelligence_api_service() -> Iterator[IntelligenceApiService]:
 
     with mysql_connection() as connection:
         yield IntelligenceApiService(IntelligenceQueryRepository(connection))
+
+
+def get_intelligence_management_service() -> Iterator[IntelligenceManagementService]:
+    """Open one transactional MySQL connection for controlled topic maintenance."""
+
+    with mysql_connection() as connection:
+        DatabaseMaintenance(connection).ensure_intelligence_schema()
+        yield IntelligenceManagementService(IntelligenceManagementRepository(connection))
 
 
 @lru_cache(maxsize=1)

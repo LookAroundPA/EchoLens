@@ -118,3 +118,35 @@ class TopicHistoryResponse(ApiModel):
     topic: TopicSummary
     items: list[TopicOpinion]
     total: int
+
+
+class TopicReviewItem(ApiModel):
+    topic: TopicSummary
+    aliases: list[str] = Field(default_factory=list)
+    opinion_count: int = 0
+    creator_count: int = 0
+    latest_published_at: datetime | None = None
+
+
+class TopicReviewListResponse(ApiModel):
+    items: list[TopicReviewItem]
+    total: int
+
+
+class TopicUpdateRequest(ApiModel):
+    canonical_name: str = Field(min_length=1, max_length=255)
+    status: Literal["active", "pending"]
+
+
+class TopicAliasCreateRequest(ApiModel):
+    alias: str = Field(min_length=1, max_length=255)
+
+
+class TopicMergeRequest(ApiModel):
+    target_topic_id: int = Field(ge=1)
+
+
+class TopicMergeResponse(ApiModel):
+    source_topic_id: int
+    moved_opinion_count: int
+    target: TopicReviewItem

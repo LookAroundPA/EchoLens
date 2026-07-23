@@ -4,6 +4,7 @@ import { CreatorDetailPage } from './creator-detail-page'
 import { JobsPage } from './jobs-page-progress'
 import { KnowledgePage } from './knowledge-page'
 import { MarketRadarPage, TopicDetailPage } from './market-radar-page'
+import { TopicManagementPage } from './topic-management-page'
 import {
   CreatorsPage,
   DashboardPage,
@@ -18,6 +19,7 @@ export default function App() {
     <AppShell>
       <Routes>
         <Route path="/" element={<MarketRadarPage />} />
+        <Route path="/topics/manage" element={<TopicManagementPage />} />
         <Route path="/topics/:id" element={<TopicDetailPage />} />
         <Route path="/operations" element={<DashboardPage />} />
         <Route path="/videos" element={<VideosPage />} />

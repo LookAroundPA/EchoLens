@@ -6,6 +6,7 @@ import type { JobStatus, TagCount, VideoStatus, VideoSummary } from './types'
 
 const navItems = [
   { to: '/', label: '市场雷达', mark: '◉' },
+  { to: '/topics/manage', label: '主题管理', mark: '◇' },
   { to: '/operations', label: '运行中心', mark: '◫' },
   { to: '/videos', label: '视频', mark: '▶' },
   { to: '/creators', label: '创作者', mark: '◎' },
@@ -42,7 +43,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               to={item.to}
               end={item.to === '/'}
               className={({ isActive }) => {
-                const radarTopicActive = item.to === '/' && location.pathname.startsWith('/topics/')
+                const radarTopicActive = item.to === '/'
+                  && location.pathname.startsWith('/topics/')
+                  && location.pathname !== '/topics/manage'
                 return `nav-item${isActive || radarTopicActive ? ' is-active' : ''}`
               }}
             >

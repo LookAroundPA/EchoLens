@@ -279,18 +279,21 @@ export function MarketRadarPage() {
         title="市场雷达"
         description={`聚合财经博主最近 ${windowDays} 日观点，观察主题热度、立场变化、共识与分歧。所有结论均可追溯到视频证据。`}
         actions={
-          <div className="window-switch" aria-label="统计周期">
-            <button
-              type="button"
-              className={windowDays === 7 ? 'is-active' : ''}
-              onClick={() => setSearchParam(params, setParams, 'window', '7', '7')}
-            >7 日</button>
-            <button
-              type="button"
-              className={windowDays === 30 ? 'is-active' : ''}
-              onClick={() => setSearchParam(params, setParams, 'window', '30', '7')}
-            >30 日</button>
-          </div>
+          <>
+            <Link className="button button-secondary" to="/topics/manage">审核主题</Link>
+            <div className="window-switch" aria-label="统计周期">
+              <button
+                type="button"
+                className={windowDays === 7 ? 'is-active' : ''}
+                onClick={() => setSearchParam(params, setParams, 'window', '7', '7')}
+              >7 日</button>
+              <button
+                type="button"
+                className={windowDays === 30 ? 'is-active' : ''}
+                onClick={() => setSearchParam(params, setParams, 'window', '30', '7')}
+              >30 日</button>
+            </div>
+          </>
         }
       />
 
@@ -538,6 +541,12 @@ export function TopicDetailPage() {
                 onClick={() => setSearchParam(params, setParams, 'window', '30', '30')}
               >30 日</button>
             </div>
+            <Link
+              className="button button-secondary"
+              to={`/topics/manage?status=all&q=${encodeURIComponent(data.topic.name)}`}
+            >
+              管理主题
+            </Link>
             <Link className="button button-secondary" to={`/?window=${windowDays}`}>返回市场雷达</Link>
           </>
         }

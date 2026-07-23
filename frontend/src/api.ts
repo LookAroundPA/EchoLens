@@ -17,8 +17,14 @@ import type {
   TagListResponse,
   TopicDetailResponse,
   TopicHistoryResponse,
+  TopicAliasCreateRequest,
+  TopicMergeResponse,
   TopicRadarFilters,
   TopicRadarResponse,
+  TopicReviewFilters,
+  TopicReviewItem,
+  TopicReviewListResponse,
+  TopicUpdateRequest,
   TranscriptUpdateRequest,
   VideoDetail,
   VideoFilters,
@@ -110,6 +116,35 @@ export const api = {
     request<TopicHistoryResponse>(
       `/api/intelligence/topics/${id}/history${queryString({ creator, limit, offset })}`,
     ),
+
+  topicReview: (filters: TopicReviewFilters = {}) =>
+    request<TopicReviewListResponse>(
+      `/api/intelligence/topic-review${queryString({
+        status: filters.status ?? 'pending',
+        type: filters.topicType,
+        q: filters.q,
+        limit: filters.limit ?? 100,
+        offset: filters.offset ?? 0,
+      })}`,
+    ),
+
+  updateTopic: (id: number, payload: TopicUpdateRequest) =>
+    request<TopicReviewItem>(`/api/intelligence/topics/${id}/review`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
+  addTopicAlias: (id: number, payload: TopicAliasCreateRequest) =>
+    request<TopicReviewItem>(`/api/intelligence/topics/${id}/aliases`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  mergeTopic: (sourceId: number, targetTopicId: number) =>
+    request<TopicMergeResponse>(`/api/intelligence/topics/${sourceId}/merge`, {
+      method: 'POST',
+      body: JSON.stringify({ targetTopicId }),
+    }),
 
   creators: (q?: string, limit = 100) =>
     request<CreatorListResponse>(`/api/creators${queryString({ q, limit })}`),
