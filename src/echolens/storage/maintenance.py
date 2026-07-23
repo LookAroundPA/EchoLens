@@ -63,10 +63,7 @@ class DatabaseMaintenance:
             INNER JOIN transcripts AS t ON t.video_id = v.id
             LEFT JOIN analyses AS a ON a.video_id = v.id
             WHERE v.status IN ('done', 'analysis_failed')
-              AND (
-                  a.market_insights_json IS NULL
-                  OR JSON_LENGTH(a.market_insights_json) = 0
-              )
+              AND a.market_insights_json IS NULL
             """
         )
         row = cursor.fetchone() or {}
@@ -94,10 +91,7 @@ class DatabaseMaintenance:
             INNER JOIN transcripts AS t ON t.video_id = v.id
             LEFT JOIN analyses AS a ON a.video_id = v.id
             WHERE v.status IN ('done', 'analysis_failed')
-              AND (
-                  a.market_insights_json IS NULL
-                  OR JSON_LENGTH(a.market_insights_json) = 0
-              )
+              AND a.market_insights_json IS NULL
             ORDER BY v.id
             """
             + limit_sql,
