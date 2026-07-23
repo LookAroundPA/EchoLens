@@ -29,6 +29,28 @@ export interface CreatorSummary {
   updatedAt: string | null
 }
 
+export type MarketStance =
+  | 'strong_bullish'
+  | 'bullish'
+  | 'neutral'
+  | 'cautious'
+  | 'bearish'
+  | 'strong_bearish'
+  | 'unclear'
+
+export interface MarketInsight {
+  subject: string
+  subjectType: string
+  stance: MarketStance
+  conclusion: string
+  sourceType: 'explicit' | 'inferred'
+  timeHorizon: 'intraday' | 'short_term' | 'medium_term' | 'long_term' | 'unspecified'
+  confidence: 'high' | 'medium' | 'low'
+  reasoning: string[]
+  risks: string[]
+  evidenceQuote: string | null
+}
+
 export interface VideoSummary {
   id: number
   platform: string
@@ -39,6 +61,7 @@ export interface VideoSummary {
   summary: string | null
   tags: string[]
   keyPoints: string[]
+  marketInsights: MarketInsight[]
   publishedAt: string | null
   status: VideoStatus
   updatedAt: string | null

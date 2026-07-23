@@ -26,7 +26,8 @@ class FrontendRepository:
             v.updated_at,
             a.summary,
             a.tags_json,
-            a.key_points_json
+            a.key_points_json,
+            a.market_insights_json
         FROM videos AS v
         INNER JOIN creators AS c ON c.id = v.creator_id
         LEFT JOIN analyses AS a ON a.video_id = v.id
@@ -274,6 +275,7 @@ class FrontendRepository:
                 a.summary,
                 a.tags_json,
                 a.key_points_json,
+                a.market_insights_json,
                 a.model_name AS analysis_model
             FROM videos AS v
             INNER JOIN creators AS c ON c.id = v.creator_id

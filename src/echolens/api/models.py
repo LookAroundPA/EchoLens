@@ -41,6 +41,19 @@ class CreatorSummary(ApiModel):
     updated_at: datetime | None = None
 
 
+class MarketInsight(ApiModel):
+    subject: str
+    subject_type: str
+    stance: str
+    conclusion: str
+    source_type: str
+    time_horizon: str
+    confidence: str
+    reasoning: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+    evidence_quote: str | None = None
+
+
 class VideoSummary(ApiModel):
     id: int
     platform: str
@@ -51,6 +64,7 @@ class VideoSummary(ApiModel):
     summary: str | None = None
     tags: list[str] = Field(default_factory=list)
     key_points: list[str] = Field(default_factory=list)
+    market_insights: list[MarketInsight] = Field(default_factory=list)
     published_at: datetime | None = None
     status: str
     updated_at: datetime | None = None
@@ -198,6 +212,23 @@ def json_string_list(value: Any) -> list[str]:
     return [normalized for item in value if (normalized := str(item).strip())]
 
 
+def market_insights(value: Any) -> list[MarketInsight]:
+    """Normalize structured market conclusions stored as MySQL JSON."""
+
+    value = json_value(value, [])
+    if not isinstance(value, list):
+        return []
+    result: list[MarketInsight] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        try:
+            result.append(MarketInsight.model_validate(item))
+        except (TypeError, ValueError):
+            continue
+    return result
+
+
 def transcript_segments(value: Any) -> list[TranscriptSegment]:
     """Normalize timestamped transcript segments stored as MySQL JSON."""
 
@@ -259,6 +290,7 @@ def video_summary_from_row(row: dict[str, Any]) -> VideoSummary:
         summary=row.get("summary"),
         tags=json_string_list(row.get("tags_json")),
         key_points=json_string_list(row.get("key_points_json")),
+        market_insights=market_insights(row.get("market_insights_json")),
         published_at=published_datetime(row.get("source_create_time")),
         status=str(row["status"]),
         updated_at=row.get("updated_at"),

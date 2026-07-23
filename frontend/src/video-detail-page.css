@@ -191,6 +191,114 @@
   border: 1px solid rgba(81, 214, 154, 0.16);
 }
 
+.market-insights-note {
+  margin: -0.15rem 0 0.85rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.market-insights-grid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.market-insight {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.market-insight--strong_bullish,
+.market-insight--bullish { border-left-color: #ef4444; }
+.market-insight--strong_bearish,
+.market-insight--bearish { border-left-color: #22c55e; }
+.market-insight--cautious { border-left-color: #f59e0b; }
+.market-insight--neutral,
+.market-insight--unclear { border-left-color: #94a3b8; }
+
+.market-insight-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: flex-start;
+}
+
+.market-insight-header > div:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.market-stance,
+.market-insight-meta span {
+  display: inline-flex;
+  padding: 0.2rem 0.48rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.market-stance--strong_bullish,
+.market-stance--bullish { color: #fca5a5; background: rgba(239, 68, 68, 0.14); }
+.market-stance--strong_bearish,
+.market-stance--bearish { color: #86efac; background: rgba(34, 197, 94, 0.14); }
+.market-stance--cautious { color: #fcd34d; background: rgba(245, 158, 11, 0.14); }
+.market-stance--neutral,
+.market-stance--unclear { color: #cbd5e1; background: rgba(148, 163, 184, 0.13); }
+
+.market-insight-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.market-insight-meta span {
+  color: var(--muted);
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.market-insight-conclusion {
+  margin: 0.8rem 0;
+  font-size: 0.98rem;
+  line-height: 1.75;
+}
+
+.market-inference-warning {
+  margin: -0.25rem 0 0.8rem;
+  color: #f4cc7f;
+  font-size: 0.75rem;
+}
+
+.market-insight-section h4 {
+  margin: 0.7rem 0 0.35rem;
+  font-size: 0.78rem;
+}
+
+.market-insight-section ul {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+
+.market-insight-risks h4 { color: #f4cc7f; }
+
+.market-evidence {
+  margin: 0.85rem 0 0;
+  padding: 0.65rem 0.8rem;
+  border-left: 3px solid rgba(112, 137, 255, 0.45);
+  background: rgba(112, 137, 255, 0.06);
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
 @media (max-width: 720px) {
   .analysis-stale-notice {
     grid-template-columns: 1fr;
@@ -208,6 +316,14 @@
 
   .editor-actions .button {
     flex: 1 1 100%;
+  }
+
+  .market-insight-header {
+    flex-direction: column;
+  }
+
+  .market-insight-meta {
+    justify-content: flex-start;
   }
 
   .playback-toolbar {

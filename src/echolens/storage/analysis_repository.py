@@ -84,15 +84,17 @@ class AnalysisRepository:
                 summary,
                 tags_json,
                 key_points_json,
+                market_insights_json,
                 model_name,
                 created_at,
                 updated_at
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
                 summary = VALUES(summary),
                 tags_json = VALUES(tags_json),
                 key_points_json = VALUES(key_points_json),
+                market_insights_json = VALUES(market_insights_json),
                 model_name = VALUES(model_name),
                 updated_at = VALUES(updated_at)
             """,
@@ -101,6 +103,7 @@ class AnalysisRepository:
                 result.summary,
                 json.dumps(result.tags, ensure_ascii=False),
                 json.dumps(result.key_points, ensure_ascii=False),
+                json.dumps([item.model_dump() for item in result.market_insights], ensure_ascii=False),
                 model_name,
                 now,
                 now,

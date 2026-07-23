@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS analyses (
     summary TEXT NULL,
     tags_json JSON NULL,
     key_points_json JSON NULL,
+    market_insights_json JSON NULL,
     model_name VARCHAR(128) NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,

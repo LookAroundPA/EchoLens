@@ -12,7 +12,7 @@ import {
   StatusBadge,
   TagPills,
 } from './components'
-import type { KeyPointEvidence, ProcessingJob, VideoDetail, VideoProcessStage } from './types'
+import type { KeyPointEvidence, MarketInsight, ProcessingJob, VideoDetail, VideoProcessStage } from './types'
 import './video-detail-page.css'
 
 function uniqueLines(value: string): string[] {
@@ -42,6 +42,30 @@ function parseSegmentIndex(value: string | null, length: number): number | null 
 
 function evidenceMap(items: KeyPointEvidence[]): Map<number, KeyPointEvidence> {
   return new Map(items.map((item) => [item.keyPointIndex, item]))
+}
+
+const stanceLabels: Record<MarketInsight['stance'], string> = {
+  strong_bullish: '强烈看多',
+  bullish: '看多',
+  neutral: '中性',
+  cautious: '谨慎',
+  bearish: '看空',
+  strong_bearish: '强烈看空',
+  unclear: '方向不明',
+}
+
+const horizonLabels: Record<MarketInsight['timeHorizon'], string> = {
+  intraday: '日内',
+  short_term: '短期',
+  medium_term: '中期',
+  long_term: '长期',
+  unspecified: '周期未说明',
+}
+
+const confidenceLabels: Record<MarketInsight['confidence'], string> = {
+  high: '高置信度',
+  medium: '中置信度',
+  low: '低置信度',
 }
 
 export function VideoDetailPage() {
@@ -357,6 +381,44 @@ export function VideoDetailPage() {
               </div>
             ) : (
               <div className="analysis-view">
+                <div>
+                  <h3>市场结论</h3>
+                  <p className="market-insights-note">用于提取博主表达或由其论据支持的市场方向。系统推导内容会单独标记，不构成交易指令。</p>
+                  {item.marketInsights.length ? (
+                    <div className="market-insights-grid">
+                      {item.marketInsights.map((insight, index) => (
+                        <article className={`market-insight market-insight--${insight.stance}`} key={`${index}-${insight.subject}-${insight.conclusion}`}>
+                          <div className="market-insight-header">
+                            <div>
+                              <strong>{insight.subject}</strong>
+                              <span className={`market-stance market-stance--${insight.stance}`}>{stanceLabels[insight.stance]}</span>
+                            </div>
+                            <div className="market-insight-meta">
+                              <span>{horizonLabels[insight.timeHorizon]}</span>
+                              <span>{confidenceLabels[insight.confidence]}</span>
+                              <span>{insight.sourceType === 'explicit' ? '博主明确表达' : '系统推导'}</span>
+                            </div>
+                          </div>
+                          <p className="market-insight-conclusion">{insight.conclusion}</p>
+                          {insight.sourceType === 'inferred' ? <p className="market-inference-warning">该结论是根据视频论据推导，并非博主直接表述。</p> : null}
+                          {insight.reasoning.length ? (
+                            <div className="market-insight-section">
+                              <h4>判断依据</h4>
+                              <ul>{insight.reasoning.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+                            </div>
+                          ) : null}
+                          {insight.risks.length ? (
+                            <div className="market-insight-section market-insight-risks">
+                              <h4>风险与保留意见</h4>
+                              <ul>{insight.risks.map((risk) => <li key={risk}>{risk}</li>)}</ul>
+                            </div>
+                          ) : null}
+                          {insight.evidenceQuote ? <blockquote className="market-evidence">“{insight.evidenceQuote}”</blockquote> : null}
+                        </article>
+                      ))}
+                    </div>
+                  ) : <p className="muted">该视频未提取到可靠的市场方向结论。</p>}
+                </div>
                 <div>
                   <h3>摘要</h3>
                   <p className="summary-text">{item.summary || '尚未生成摘要。'}</p>
