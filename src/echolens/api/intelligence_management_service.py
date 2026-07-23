@@ -5,6 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from echolens.api.intelligence_models import (
+    ReferenceAsset,
+    ReferenceAssetListResponse,
+    TopicAssetListResponse,
+    TopicAssetMapping,
     TopicMergeResponse,
     TopicReviewItem,
     TopicReviewListResponse,
@@ -41,6 +45,80 @@ class IntelligenceManagementService:
             items=[self._review_item(row) for row in rows],
             total=total,
         )
+
+    def list_assets(
+        self,
+        *,
+        asset_type: str | None,
+        query: str | None,
+        limit: int,
+        offset: int,
+    ) -> ReferenceAssetListResponse:
+        rows, total = self.repository.list_assets(
+            asset_type=asset_type,
+            query=query,
+            limit=limit,
+            offset=offset,
+        )
+        return ReferenceAssetListResponse(
+            items=[self._asset(row) for row in rows],
+            total=total,
+        )
+
+    def create_asset(
+        self,
+        *,
+        asset_type: str,
+        code: str,
+        name: str,
+        market: str,
+    ) -> ReferenceAsset:
+        return self._asset(
+            self.repository.create_asset(
+                asset_type=asset_type,
+                code=code,
+                name=name,
+                market=market,
+            )
+        )
+
+    def list_topic_assets(self, topic_id: int) -> TopicAssetListResponse | None:
+        if self.repository.get_topic_item(topic_id) is None:
+            return None
+        rows = self.repository.list_topic_assets(topic_id)
+        return TopicAssetListResponse(
+            items=[self._asset_mapping(row) for row in rows],
+            total=len(rows),
+        )
+
+    def map_asset(
+        self,
+        topic_id: int,
+        *,
+        asset_id: int,
+        relation_type: str,
+        note: str | None,
+    ) -> TopicAssetListResponse | None:
+        if self.repository.get_topic_item(topic_id) is None:
+            return None
+        self.repository.map_asset(
+            topic_id,
+            asset_id=asset_id,
+            relation_type=relation_type,
+            note=note,
+        )
+        return self.list_topic_assets(topic_id)
+
+    def remove_asset_mapping(
+        self,
+        topic_id: int,
+        mapping_id: int,
+    ) -> TopicAssetListResponse | None:
+        if self.repository.get_topic_item(topic_id) is None:
+            return None
+        if not self.repository.remove_asset_mapping(topic_id, mapping_id):
+            raise KeyError(f"Asset mapping {mapping_id} does not exist")
+        return self.list_topic_assets(topic_id)
 
     def update_topic(
         self,
@@ -83,6 +161,37 @@ class IntelligenceManagementService:
             source_topic_id=source_topic_id,
             moved_opinion_count=moved,
             target=self._review_item(target),
+        )
+
+    @staticmethod
+    def _asset(row: dict[str, Any]) -> ReferenceAsset:
+        return ReferenceAsset(
+            id=int(row["id"]),
+            asset_type=str(row["asset_type"]),
+            code=str(row["code"]),
+            name=str(row["name"]),
+            market=str(row.get("market") or ""),
+            status=str(row.get("status") or "active"),
+        )
+
+    @classmethod
+    def _asset_mapping(cls, row: dict[str, Any]) -> TopicAssetMapping:
+        return TopicAssetMapping(
+            id=int(row["id"]),
+            topic_id=int(row["topic_id"]),
+            asset=ReferenceAsset(
+                id=int(row["asset_id"]),
+                asset_type=str(row["asset_type"]),
+                code=str(row["code"]),
+                name=str(row["name"]),
+                market=str(row.get("market") or ""),
+                status=str(row.get("asset_status") or "active"),
+            ),
+            relation_type=str(row["relation_type"]),
+            note=row.get("note"),
+            source=str(row["source"]),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
         )
 
     @staticmethod

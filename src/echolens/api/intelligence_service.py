@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from echolens.api.intelligence_models import (
+    ReferenceAsset,
+    TopicAssetMapping,
     TopicDetailResponse,
     TopicHeatMetrics,
     TopicHistoryResponse,
@@ -173,6 +175,10 @@ class IntelligenceApiService:
                 previous_changes,
                 window_days=window_days,
             ),
+            related_assets=[
+                self._asset_mapping_from_row(row)
+                for row in self.repository.list_topic_assets(topic_id)
+            ],
             latest_opinions=[self._opinion_from_row(row) for row in opinion_rows],
             recent_changes=[
                 self._change_from_row(row)
@@ -330,6 +336,26 @@ class IntelligenceApiService:
             name=str(row["canonical_name"]),
             topic_type=str(row["topic_type"]),
             status=str(row["status"]),
+        )
+
+    @staticmethod
+    def _asset_mapping_from_row(row: dict[str, Any]) -> TopicAssetMapping:
+        return TopicAssetMapping(
+            id=int(row["id"]),
+            topic_id=int(row["topic_id"]),
+            asset=ReferenceAsset(
+                id=int(row["asset_id"]),
+                asset_type=str(row["asset_type"]),
+                code=str(row["code"]),
+                name=str(row["name"]),
+                market=str(row.get("market") or ""),
+                status=str(row.get("asset_status") or "active"),
+            ),
+            relation_type=str(row["relation_type"]),
+            note=row.get("note"),
+            source=str(row["source"]),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
         )
 
     @staticmethod

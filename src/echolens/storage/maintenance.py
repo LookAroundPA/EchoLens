@@ -121,6 +121,47 @@ INTELLIGENCE_TABLE_STATEMENTS: tuple[tuple[str, str], ...] = (
         )
         """,
     ),
+    (
+        "reference_assets",
+        """
+        CREATE TABLE IF NOT EXISTS reference_assets (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            asset_type VARCHAR(32) NOT NULL,
+            code VARCHAR(64) NOT NULL,
+            normalized_code VARCHAR(64) NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            market VARCHAR(32) NOT NULL DEFAULT '',
+            status VARCHAR(32) NOT NULL DEFAULT 'active',
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            UNIQUE KEY uq_reference_assets_identity (
+                asset_type,
+                market,
+                normalized_code
+            ),
+            KEY idx_reference_assets_name (name),
+            KEY idx_reference_assets_status (status)
+        )
+        """,
+    ),
+    (
+        "topic_asset_mappings",
+        """
+        CREATE TABLE IF NOT EXISTS topic_asset_mappings (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            topic_id BIGINT UNSIGNED NOT NULL,
+            asset_id BIGINT UNSIGNED NOT NULL,
+            relation_type VARCHAR(32) NOT NULL DEFAULT 'related',
+            note VARCHAR(500) NULL,
+            source VARCHAR(32) NOT NULL DEFAULT 'manual',
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            UNIQUE KEY uq_topic_asset_mappings_topic_asset (topic_id, asset_id),
+            KEY idx_topic_asset_mappings_topic (topic_id),
+            KEY idx_topic_asset_mappings_asset (asset_id)
+        )
+        """,
+    ),
 )
 
 

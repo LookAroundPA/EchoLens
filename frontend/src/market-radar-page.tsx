@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { api, formatDate } from './api'
+import { TopicAssetReadOnly } from './topic-asset-manager'
 import { EmptyState, ErrorState, LoadingState, PageHeader, Panel, StatCard } from './components'
 import type {
   DominantStance,
@@ -624,6 +625,10 @@ export function TopicDetailPage() {
 
           <Panel title="热度构成" description="热度只用于解释关注变化，不代表投资收益。">
             <HeatBreakdown metrics={metrics} />
+          </Panel>
+
+          <Panel title="相关标的（参考）" description="人工维护的主题相关资产，仅供检索和信息整理，不构成买卖建议。">
+            <TopicAssetReadOnly mappings={data.relatedAssets} />
           </Panel>
 
           <Panel title="主题别名" description="不同表达统一归入此标准主题。">

@@ -14,6 +14,8 @@ from echolens.api.models import ApiModel
 TopicStatusFilter = Literal["all", "active", "pending"]
 TopicTrendFilter = Literal["all", "new", "rising", "stable", "falling"]
 TopicType = Literal["stock", "industry", "index", "commodity", "currency", "macro", "market"]
+AssetType = Literal["stock", "etf", "fund", "index", "industry", "commodity", "currency"]
+AssetRelationType = Literal["direct", "upstream", "downstream", "benchmark", "related"]
 
 
 class TopicWindowDays(IntEnum):
@@ -106,10 +108,54 @@ class TopicOpinionChange(ApiModel):
     detected_at: datetime
 
 
+class ReferenceAsset(ApiModel):
+    id: int
+    asset_type: str
+    code: str
+    name: str
+    market: str = ""
+    status: str = "active"
+
+
+class ReferenceAssetListResponse(ApiModel):
+    items: list[ReferenceAsset]
+    total: int
+
+
+class ReferenceAssetCreateRequest(ApiModel):
+    asset_type: AssetType
+    code: str = Field(min_length=1, max_length=64)
+    name: str = Field(min_length=1, max_length=255)
+    market: str = Field(default="", max_length=32)
+
+
+class TopicAssetMapping(ApiModel):
+    id: int
+    topic_id: int
+    asset: ReferenceAsset
+    relation_type: str
+    note: str | None = None
+    source: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class TopicAssetListResponse(ApiModel):
+    items: list[TopicAssetMapping]
+    total: int
+
+
+class TopicAssetMapRequest(ApiModel):
+    asset_id: int = Field(ge=1)
+    relation_type: AssetRelationType = "related"
+    note: str | None = Field(default=None, max_length=500)
+
+
 class TopicDetailResponse(ApiModel):
     topic: TopicSummary
     aliases: list[str] = Field(default_factory=list)
     metrics: TopicHeatMetrics
+    related_assets: list[TopicAssetMapping] = Field(default_factory=list)
     latest_opinions: list[TopicOpinion] = Field(default_factory=list)
     recent_changes: list[TopicOpinionChange] = Field(default_factory=list)
 

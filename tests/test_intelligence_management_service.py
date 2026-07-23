@@ -31,6 +31,19 @@ class FakeManagementRepository:
             },
         }
         self.last_list_args = None
+        self.asset_rows = {
+            10: {
+                "id": 10,
+                "asset_type": "etf",
+                "code": "588000",
+                "name": "科创50ETF",
+                "market": "SH",
+                "status": "active",
+                "created_at": datetime(2026, 7, 20),
+                "updated_at": datetime(2026, 7, 20),
+            }
+        }
+        self.mappings: list[dict] = []
 
     def list_topics(self, **kwargs):
         self.last_list_args = kwargs
@@ -38,6 +51,58 @@ class FakeManagementRepository:
 
     def get_topic_item(self, topic_id):
         return self.rows.get(topic_id)
+
+    def list_assets(self, **kwargs):
+        return list(self.asset_rows.values()), len(self.asset_rows)
+
+    def create_asset(self, *, asset_type, code, name, market):
+        row = {
+            "id": 11,
+            "asset_type": asset_type,
+            "code": code.upper(),
+            "name": name,
+            "market": market.upper(),
+            "status": "active",
+            "created_at": datetime(2026, 7, 23),
+            "updated_at": datetime(2026, 7, 23),
+        }
+        self.asset_rows[11] = row
+        return row
+
+    def list_topic_assets(self, topic_id):
+        return [row for row in self.mappings if row["topic_id"] == topic_id]
+
+    def map_asset(self, topic_id, *, asset_id, relation_type, note):
+        asset = self.asset_rows[asset_id]
+        self.mappings = [
+            row for row in self.mappings
+            if not (row["topic_id"] == topic_id and row["asset_id"] == asset_id)
+        ]
+        self.mappings.append(
+            {
+                "id": 30,
+                "topic_id": topic_id,
+                "relation_type": relation_type,
+                "note": note,
+                "source": "manual",
+                "created_at": datetime(2026, 7, 23),
+                "updated_at": datetime(2026, 7, 23),
+                "asset_id": asset_id,
+                "asset_type": asset["asset_type"],
+                "code": asset["code"],
+                "name": asset["name"],
+                "market": asset["market"],
+                "asset_status": asset["status"],
+            }
+        )
+
+    def remove_asset_mapping(self, topic_id, mapping_id):
+        before = len(self.mappings)
+        self.mappings = [
+            row for row in self.mappings
+            if not (row["topic_id"] == topic_id and row["id"] == mapping_id)
+        ]
+        return len(self.mappings) < before
 
     def update_topic(self, topic_id, *, canonical_name, status):
         self.rows[topic_id]["canonical_name"] = canonical_name
@@ -82,6 +147,38 @@ class IntelligenceManagementServiceTests(unittest.TestCase):
                 "offset": 0,
             },
         )
+
+    def test_creates_and_maps_reference_asset(self) -> None:
+        catalog = self.service.list_assets(
+            asset_type="etf",
+            query="科创",
+            limit=20,
+            offset=0,
+        )
+        created = self.service.create_asset(
+            asset_type="stock",
+            code="600519",
+            name="贵州茅台",
+            market="sh",
+        )
+        mapped = self.service.map_asset(
+            2,
+            asset_id=created.id,
+            relation_type="direct",
+            note="主题核心相关标的",
+        )
+
+        self.assertEqual(catalog.total, 1)
+        self.assertEqual(created.market, "SH")
+        self.assertIsNotNone(mapped)
+        assert mapped is not None
+        self.assertEqual(mapped.items[0].asset.code, "600519")
+        self.assertEqual(mapped.items[0].relation_type, "direct")
+
+        removed = self.service.remove_asset_mapping(2, mapped.items[0].id)
+        self.assertIsNotNone(removed)
+        assert removed is not None
+        self.assertEqual(removed.total, 0)
 
     def test_updates_topic_and_adds_alias(self) -> None:
         updated = self.service.update_topic(1, canonical_name="人工智能行业", status="active")

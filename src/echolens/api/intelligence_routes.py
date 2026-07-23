@@ -7,7 +7,13 @@ from echolens.api.dependencies import (
     get_intelligence_management_service,
 )
 from echolens.api.intelligence_models import (
+    AssetType,
+    ReferenceAsset,
+    ReferenceAssetCreateRequest,
+    ReferenceAssetListResponse,
     TopicAliasCreateRequest,
+    TopicAssetListResponse,
+    TopicAssetMapRequest,
     TopicDetailResponse,
     TopicHistoryResponse,
     TopicMergeRequest,
@@ -66,6 +72,99 @@ def topic_review_catalog(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get("/assets", response_model=ReferenceAssetListResponse)
+def reference_assets(
+    asset_type: AssetType | None = Query(default=None, alias="type"),
+    q: str | None = Query(default=None, min_length=1, max_length=255),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    service: IntelligenceManagementService = Depends(get_intelligence_management_service),
+) -> ReferenceAssetListResponse:
+    """List the manually controlled reference-asset catalog."""
+
+    return service.list_assets(
+        asset_type=asset_type,
+        query=q,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.post("/assets", response_model=ReferenceAsset)
+def create_reference_asset(
+    request: ReferenceAssetCreateRequest,
+    service: IntelligenceManagementService = Depends(get_intelligence_management_service),
+) -> ReferenceAsset:
+    """Create or update one controlled reference asset by type, market, and code."""
+
+    try:
+        return service.create_asset(
+            asset_type=request.asset_type,
+            code=request.code,
+            name=request.name,
+            market=request.market,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/topics/{topic_id}/assets", response_model=TopicAssetListResponse)
+def topic_assets(
+    topic_id: int,
+    service: IntelligenceManagementService = Depends(get_intelligence_management_service),
+) -> TopicAssetListResponse:
+    """List controlled reference assets linked to one topic."""
+
+    result = service.list_topic_assets(topic_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    return result
+
+
+@router.post("/topics/{topic_id}/assets", response_model=TopicAssetListResponse)
+def map_topic_asset(
+    topic_id: int,
+    request: TopicAssetMapRequest,
+    service: IntelligenceManagementService = Depends(get_intelligence_management_service),
+) -> TopicAssetListResponse:
+    """Add or update a manual topic-to-reference-asset relationship."""
+
+    try:
+        result = service.map_asset(
+            topic_id,
+            asset_id=request.asset_id,
+            relation_type=request.relation_type,
+            note=request.note,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc.args[0])) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if result is None:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    return result
+
+
+@router.post(
+    "/topics/{topic_id}/assets/{mapping_id}/remove",
+    response_model=TopicAssetListResponse,
+)
+def remove_topic_asset(
+    topic_id: int,
+    mapping_id: int,
+    service: IntelligenceManagementService = Depends(get_intelligence_management_service),
+) -> TopicAssetListResponse:
+    """Remove one manual topic-to-reference-asset relationship."""
+
+    try:
+        result = service.remove_asset_mapping(topic_id, mapping_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc.args[0])) from exc
+    if result is None:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    return result
 
 
 @router.patch("/topics/{topic_id}/review", response_model=TopicReviewItem)

@@ -19,6 +19,8 @@ export type TopicStatusFilter = 'all' | 'active' | 'pending'
 export type TopicTrend = 'new' | 'rising' | 'stable' | 'falling'
 export type TopicTrendFilter = 'all' | TopicTrend
 export type DominantStance = 'bullish' | 'bearish' | 'cautious' | 'neutral' | 'unclear' | 'mixed'
+export type AssetType = 'stock' | 'etf' | 'fund' | 'index' | 'industry' | 'commodity' | 'currency'
+export type AssetRelationType = 'direct' | 'upstream' | 'downstream' | 'benchmark' | 'related'
 
 export interface TagCount {
   tag: string
@@ -140,10 +142,54 @@ export interface TopicOpinionChange {
   detectedAt: string
 }
 
+export interface ReferenceAsset {
+  id: number
+  assetType: AssetType | string
+  code: string
+  name: string
+  market: string
+  status: string
+}
+
+export interface ReferenceAssetListResponse {
+  items: ReferenceAsset[]
+  total: number
+}
+
+export interface TopicAssetMapping {
+  id: number
+  topicId: number
+  asset: ReferenceAsset
+  relationType: AssetRelationType | string
+  note: string | null
+  source: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TopicAssetListResponse {
+  items: TopicAssetMapping[]
+  total: number
+}
+
+export interface ReferenceAssetCreateRequest {
+  assetType: AssetType
+  code: string
+  name: string
+  market: string
+}
+
+export interface TopicAssetMapRequest {
+  assetId: number
+  relationType: AssetRelationType
+  note?: string
+}
+
 export interface TopicDetailResponse {
   topic: TopicSummary
   aliases: string[]
   metrics: TopicHeatMetrics
+  relatedAssets: TopicAssetMapping[]
   latestOpinions: TopicOpinion[]
   recentChanges: TopicOpinionChange[]
 }

@@ -10,11 +10,16 @@ import type {
   JobListResponse,
   PipelineRequest,
   ProcessingJob,
+  ReferenceAsset,
+  ReferenceAssetCreateRequest,
+  ReferenceAssetListResponse,
   SearchResponse,
   SemanticIndexStatus,
   SemanticSearchResponse,
   SemanticSyncRequest,
   TagListResponse,
+  TopicAssetListResponse,
+  TopicAssetMapRequest,
   TopicDetailResponse,
   TopicHistoryResponse,
   TopicAliasCreateRequest,
@@ -115,6 +120,32 @@ export const api = {
   topicHistory: (id: number, creator?: string, limit = 100, offset = 0) =>
     request<TopicHistoryResponse>(
       `/api/intelligence/topics/${id}/history${queryString({ creator, limit, offset })}`,
+    ),
+
+  referenceAssets: (type?: string, q?: string, limit = 100, offset = 0) =>
+    request<ReferenceAssetListResponse>(
+      `/api/intelligence/assets${queryString({ type, q, limit, offset })}`,
+    ),
+
+  createReferenceAsset: (payload: ReferenceAssetCreateRequest) =>
+    request<ReferenceAsset>('/api/intelligence/assets', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  topicAssets: (topicId: number) =>
+    request<TopicAssetListResponse>(`/api/intelligence/topics/${topicId}/assets`),
+
+  mapTopicAsset: (topicId: number, payload: TopicAssetMapRequest) =>
+    request<TopicAssetListResponse>(`/api/intelligence/topics/${topicId}/assets`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  removeTopicAsset: (topicId: number, mappingId: number) =>
+    request<TopicAssetListResponse>(
+      `/api/intelligence/topics/${topicId}/assets/${mappingId}/remove`,
+      { method: 'POST' },
     ),
 
   topicReview: (filters: TopicReviewFilters = {}) =>

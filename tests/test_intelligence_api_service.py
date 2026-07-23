@@ -99,6 +99,25 @@ class FakeIntelligenceQueryRepository:
     def list_topic_opinions(self, topic_id, **kwargs):
         return [], 0
 
+    def list_topic_assets(self, topic_id):
+        return [
+            {
+                "id": 30,
+                "topic_id": topic_id,
+                "relation_type": "benchmark",
+                "note": "跟踪主题表现",
+                "source": "manual",
+                "created_at": datetime(2026, 7, 23),
+                "updated_at": datetime(2026, 7, 23),
+                "asset_id": 10,
+                "asset_type": "etf",
+                "code": "588000",
+                "name": "科创50ETF",
+                "market": "SH",
+                "asset_status": "active",
+            }
+        ]
+
     def list_topic_changes(self, topic_id, **kwargs):
         return []
 

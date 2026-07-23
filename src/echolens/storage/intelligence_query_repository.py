@@ -199,6 +199,45 @@ class IntelligenceQueryRepository:
         cursor.close()
         return rows, total
 
+    def list_topic_assets(self, topic_id: int) -> list[dict[str, Any]]:
+        cursor = self.connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT
+                tam.id,
+                tam.topic_id,
+                tam.relation_type,
+                tam.note,
+                tam.source,
+                tam.created_at,
+                tam.updated_at,
+                ra.id AS asset_id,
+                ra.asset_type,
+                ra.code,
+                ra.name,
+                ra.market,
+                ra.status AS asset_status
+            FROM topic_asset_mappings AS tam
+            INNER JOIN reference_assets AS ra ON ra.id = tam.asset_id
+            WHERE tam.topic_id = %s
+              AND ra.status = 'active'
+            ORDER BY
+                CASE tam.relation_type
+                    WHEN 'direct' THEN 0
+                    WHEN 'benchmark' THEN 1
+                    WHEN 'upstream' THEN 2
+                    WHEN 'downstream' THEN 3
+                    ELSE 4
+                END,
+                ra.asset_type,
+                ra.code
+            """,
+            (topic_id,),
+        )
+        rows = list(cursor.fetchall())
+        cursor.close()
+        return rows
+
     def list_topic_changes(self, topic_id: int, *, limit: int = 50) -> list[dict[str, Any]]:
         cursor = self.connection.cursor(dictionary=True)
         cursor.execute(

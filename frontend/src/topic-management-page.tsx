@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api, formatDate } from './api'
+import { TopicAssetManager } from './topic-asset-manager'
 import {
   EmptyState,
   ErrorState,
@@ -387,6 +388,11 @@ export function TopicManagementPage() {
                   </div>
                   <InlineError error={addAlias.error} />
                 </Panel>
+
+                <TopicAssetManager
+                  topicId={selected.topic.id}
+                  topicStatus={selected.topic.status}
+                />
 
                 <Panel
                   title="合并重复主题"
