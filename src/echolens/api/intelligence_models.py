@@ -1,0 +1,120 @@
+"""Browser-facing contracts for normalized investment intelligence."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from enum import IntEnum
+from typing import Literal
+
+from pydantic import Field
+
+from echolens.api.models import ApiModel
+
+
+TopicStatusFilter = Literal["all", "active", "pending"]
+TopicTrendFilter = Literal["all", "new", "rising", "stable", "falling"]
+TopicType = Literal["stock", "industry", "index", "commodity", "currency", "macro", "market"]
+
+
+class TopicWindowDays(IntEnum):
+    seven = 7
+    thirty = 30
+HeatTrend = Literal["new", "rising", "stable", "falling"]
+DominantStance = Literal["bullish", "bearish", "cautious", "neutral", "unclear", "mixed"]
+
+
+class TopicSummary(ApiModel):
+    id: int
+    name: str
+    topic_type: str
+    status: str
+
+
+class TopicHeatMetrics(ApiModel):
+    window_days: int
+    opinion_count: int = 0
+    creator_count: int = 0
+    explicit_count: int = 0
+    inferred_count: int = 0
+    change_count: int = 0
+    stance_counts: dict[str, int] = Field(default_factory=dict)
+    bullish_ratio: float = 0.0
+    bearish_ratio: float = 0.0
+    cautious_ratio: float = 0.0
+    neutral_ratio: float = 0.0
+    unclear_ratio: float = 0.0
+    dominant_stance: DominantStance = "unclear"
+    consensus_ratio: float = 0.0
+    weighted_mentions: float = 0.0
+    heat_components: dict[str, float] = Field(default_factory=dict)
+    heat_score: float = 0.0
+    previous_heat_score: float = 0.0
+    heat_change: float = 0.0
+    trend: HeatTrend = "stable"
+
+
+class TopicRadarItem(ApiModel):
+    topic: TopicSummary
+    metrics: TopicHeatMetrics
+    latest_published_at: datetime | None = None
+
+
+class TopicRadarResponse(ApiModel):
+    window_days: int
+    generated_at: datetime
+    items: list[TopicRadarItem]
+    total: int
+
+
+class TopicOpinion(ApiModel):
+    id: int
+    topic_id: int
+    creator_id: int
+    creator_platform: str
+    creator_sec_uid: str
+    creator_name: str | None = None
+    video_id: int
+    platform_video_id: str
+    video_description: str | None = None
+    raw_subject: str
+    stance: str
+    source_type: str
+    time_horizon: str
+    confidence: str
+    conclusion: str
+    reasoning: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+    evidence_quote: str | None = None
+    published_at: datetime
+    change_type: str | None = None
+    change_summary: str | None = None
+
+
+class TopicOpinionChange(ApiModel):
+    id: int
+    topic_id: int
+    creator_id: int
+    creator_platform: str
+    creator_sec_uid: str
+    creator_name: str | None = None
+    current_opinion_id: int
+    current_video_id: int
+    change_type: str
+    previous_stance: str | None = None
+    current_stance: str
+    change_summary: str
+    detected_at: datetime
+
+
+class TopicDetailResponse(ApiModel):
+    topic: TopicSummary
+    aliases: list[str] = Field(default_factory=list)
+    metrics: TopicHeatMetrics
+    latest_opinions: list[TopicOpinion] = Field(default_factory=list)
+    recent_changes: list[TopicOpinionChange] = Field(default_factory=list)
+
+
+class TopicHistoryResponse(ApiModel):
+    topic: TopicSummary
+    items: list[TopicOpinion]
+    total: int

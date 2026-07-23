@@ -6,12 +6,14 @@ from functools import lru_cache
 from fastapi import Depends
 
 from echolens.api.content_service import ContentService
+from echolens.api.intelligence_service import IntelligenceApiService
 from echolens.api.knowledge_service import KnowledgeService
 from echolens.api.management_service import ManagementService
 from echolens.api.queued_operations import QueuedOperationService
 from echolens.api.service import FrontendService
 from echolens.storage.content_repository import ContentRepository
 from echolens.storage.frontend_repository import FrontendRepository
+from echolens.storage.intelligence_query_repository import IntelligenceQueryRepository
 from echolens.storage.management_repository import ManagementRepository
 from echolens.storage.mysql import mysql_connection
 
@@ -56,6 +58,13 @@ def get_operation_service() -> QueuedOperationService:
     """Create jobs in MySQL and submit them to the independent Redis worker."""
 
     return QueuedOperationService()
+
+
+def get_intelligence_api_service() -> Iterator[IntelligenceApiService]:
+    """Open one MySQL connection for topic intelligence reads."""
+
+    with mysql_connection() as connection:
+        yield IntelligenceApiService(IntelligenceQueryRepository(connection))
 
 
 @lru_cache(maxsize=1)

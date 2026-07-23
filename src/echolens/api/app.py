@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 
 from echolens.api.batch_routes import router as batch_router
 from echolens.api.content_routes import router as content_router
+from echolens.api.intelligence_routes import router as intelligence_router
 from echolens.api.knowledge_routes import router as knowledge_router
 from echolens.api.models import HealthResponse
 from echolens.api.queued_operations import JobQueueUnavailable
@@ -34,6 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(retry_router, prefix="/api")
     application.include_router(batch_router, prefix="/api")
     application.include_router(content_router, prefix="/api")
+    application.include_router(intelligence_router, prefix="/api")
     application.include_router(knowledge_router, prefix="/api")
 
     @application.exception_handler(JobQueueUnavailable)
