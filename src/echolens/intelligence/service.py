@@ -47,8 +47,10 @@ class IntelligenceService:
         cursor.execute(
             """
             SELECT COUNT(*) AS item_count
-            FROM analyses
-            WHERE market_insights_json IS NOT NULL
+            FROM analyses AS a
+            INNER JOIN videos AS v ON v.id = a.video_id
+            WHERE a.market_insights_json IS NOT NULL
+              AND v.status = 'done'
             """
         )
         row = cursor.fetchone() or {}
@@ -67,10 +69,12 @@ class IntelligenceService:
         cursor = self.connection.cursor(dictionary=True)
         cursor.execute(
             """
-            SELECT video_id, market_insights_json
-            FROM analyses
-            WHERE market_insights_json IS NOT NULL
-            ORDER BY id
+            SELECT a.video_id, a.market_insights_json
+            FROM analyses AS a
+            INNER JOIN videos AS v ON v.id = a.video_id
+            WHERE a.market_insights_json IS NOT NULL
+              AND v.status = 'done'
+            ORDER BY a.id
             """
             + limit_sql,
             params,

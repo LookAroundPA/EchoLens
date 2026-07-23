@@ -69,6 +69,25 @@ class IntelligenceRepository:
             self.rebuild_change_history(pair_creator_id, pair_topic_id)
         return len(insights)
 
+    def remove_video_analysis(self, video_db_id: int) -> int:
+        """Remove stale normalized opinions after a video's transcript changes."""
+
+        context = self._get_analysis_context(video_db_id)
+        if context is None:
+            return 0
+        existing = self._get_existing_opinions(int(context["analysis_id"]))
+        if not existing:
+            return 0
+        affected_pairs = {
+            (int(row["creator_id"]), int(row["topic_id"])) for row in existing
+        }
+        opinion_ids = [int(row["id"]) for row in existing]
+        self._delete_stale_opinions(opinion_ids)
+        for creator_id, topic_id in sorted(affected_pairs):
+            self.rebuild_change_history(creator_id, topic_id)
+        self.remove_unreferenced_pending_topics()
+        return len(opinion_ids)
+
     def rebuild_change_history(self, creator_id: int, topic_id: int) -> None:
         """Recompute one creator-topic change timeline after manual topic maintenance."""
 
@@ -396,10 +415,13 @@ class IntelligenceRepository:
         )
         cursor.execute(
             """
-            SELECT id, stance, published_at
-            FROM creator_topic_opinions
-            WHERE creator_id = %s AND topic_id = %s
-            ORDER BY published_at, id
+            SELECT o.id, o.stance, o.published_at
+            FROM creator_topic_opinions AS o
+            INNER JOIN videos AS v ON v.id = o.video_id
+            WHERE o.creator_id = %s
+              AND o.topic_id = %s
+              AND v.status = 'done'
+            ORDER BY o.published_at, o.id
             """,
             (creator_id, topic_id),
         )

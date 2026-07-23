@@ -6,6 +6,8 @@ from datetime import datetime
 import json
 from typing import TYPE_CHECKING, Any
 
+from echolens.intelligence.repository import IntelligenceRepository
+
 if TYPE_CHECKING:
     from mysql.connector import MySQLConnection
 else:
@@ -58,6 +60,7 @@ class ContentRepository:
                 """,
                 (now, video_db_id),
             )
+            IntelligenceRepository(self.connection).remove_video_analysis(video_db_id)
             self.connection.commit()
         except Exception:
             self.connection.rollback()
@@ -76,9 +79,11 @@ class ContentRepository:
         now = datetime.now()
         cursor = self.connection.cursor(dictionary=True)
         try:
-            cursor.execute("SELECT id FROM videos WHERE id = %s LIMIT 1", (video_db_id,))
-            if cursor.fetchone() is None:
+            cursor.execute("SELECT id, status FROM videos WHERE id = %s LIMIT 1", (video_db_id,))
+            video = cursor.fetchone()
+            if video is None:
                 raise KeyError(f"Video {video_db_id} does not exist")
+            clear_market_insights = str(video.get("status") or "") != "done"
 
             cursor.execute(
                 "SELECT id FROM transcripts WHERE video_id = %s LIMIT 1",
@@ -98,16 +103,38 @@ class ContentRepository:
                     """
                     INSERT INTO analyses (
                         video_id, summary, tags_json, key_points_json,
-                        model_name, created_at, updated_at
-                    ) VALUES (%s, %s, %s, %s, 'manual', %s, %s)
+                        market_insights_json, model_name, created_at, updated_at
+                    ) VALUES (%s, %s, %s, %s, %s, 'manual', %s, %s)
                     """,
                     (
                         video_db_id,
                         summary,
                         encoded_tags,
                         encoded_key_points,
+                        json.dumps([], ensure_ascii=False),
                         now,
                         now,
+                    ),
+                )
+            elif clear_market_insights:
+                cursor.execute(
+                    """
+                    UPDATE analyses
+                    SET summary = %s,
+                        tags_json = %s,
+                        key_points_json = %s,
+                        market_insights_json = %s,
+                        model_name = 'manual',
+                        updated_at = %s
+                    WHERE video_id = %s
+                    """,
+                    (
+                        summary,
+                        encoded_tags,
+                        encoded_key_points,
+                        json.dumps([], ensure_ascii=False),
+                        now,
+                        video_db_id,
                     ),
                 )
             else:
@@ -136,6 +163,8 @@ class ContentRepository:
                 """,
                 (now, now, video_db_id),
             )
+            if clear_market_insights:
+                IntelligenceRepository(self.connection).remove_video_analysis(video_db_id)
             self.connection.commit()
         except Exception:
             self.connection.rollback()

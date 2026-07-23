@@ -58,7 +58,12 @@ class IntelligenceQueryRepository:
         topic_type: str | None = None,
         topic_id: int | None = None,
     ) -> list[dict[str, Any]]:
-        conditions = ["o.published_at >= %s", "o.published_at < %s", "t.status <> 'archived'"]
+        conditions = [
+            "o.published_at >= %s",
+            "o.published_at < %s",
+            "t.status <> 'archived'",
+            "v.status = 'done'",
+        ]
         params: list[Any] = [start, end]
         if topic_status != "all":
             conditions.append("t.status = %s")
@@ -85,6 +90,7 @@ class IntelligenceQueryRepository:
                 t.status AS topic_status
             FROM creator_topic_opinions AS o
             INNER JOIN topics AS t ON t.id = o.topic_id
+            INNER JOIN videos AS v ON v.id = o.video_id
             WHERE
             """
             + " AND ".join(conditions)
@@ -104,7 +110,12 @@ class IntelligenceQueryRepository:
         topic_type: str | None = None,
         topic_id: int | None = None,
     ) -> list[dict[str, Any]]:
-        conditions = ["oc.detected_at >= %s", "oc.detected_at < %s", "t.status <> 'archived'"]
+        conditions = [
+            "oc.detected_at >= %s",
+            "oc.detected_at < %s",
+            "t.status <> 'archived'",
+            "v.status = 'done'",
+        ]
         params: list[Any] = [start, end]
         if topic_status != "all":
             conditions.append("t.status = %s")
@@ -122,6 +133,9 @@ class IntelligenceQueryRepository:
             SELECT oc.id, oc.topic_id, oc.creator_id, oc.change_type, oc.detected_at
             FROM opinion_changes AS oc
             INNER JOIN topics AS t ON t.id = oc.topic_id
+            INNER JOIN creator_topic_opinions AS current_opinion
+                ON current_opinion.id = oc.current_opinion_id
+            INNER JOIN videos AS v ON v.id = current_opinion.video_id
             WHERE
             """
             + " AND ".join(conditions)
@@ -140,7 +154,7 @@ class IntelligenceQueryRepository:
         limit: int = 100,
         offset: int = 0,
     ) -> tuple[list[dict[str, Any]], int]:
-        conditions = ["o.topic_id = %s"]
+        conditions = ["o.topic_id = %s", "v.status = 'done'"]
         params: list[Any] = [topic_id]
         if creator_sec_uid is not None:
             conditions.append("c.sec_uid = %s")
@@ -153,6 +167,7 @@ class IntelligenceQueryRepository:
             SELECT COUNT(*) AS item_count
             FROM creator_topic_opinions AS o
             INNER JOIN creators AS c ON c.id = o.creator_id
+            INNER JOIN videos AS v ON v.id = o.video_id
             WHERE
             """
             + where_sql,
@@ -260,7 +275,9 @@ class IntelligenceQueryRepository:
             INNER JOIN creators AS c ON c.id = oc.creator_id
             INNER JOIN creator_topic_opinions AS current_opinion
                 ON current_opinion.id = oc.current_opinion_id
+            INNER JOIN videos AS v ON v.id = current_opinion.video_id
             WHERE oc.topic_id = %s
+              AND v.status = 'done'
             ORDER BY oc.detected_at DESC, oc.id DESC
             LIMIT %s
             """,
