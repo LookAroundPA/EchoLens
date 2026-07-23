@@ -8,6 +8,8 @@ from echolens.collector.local_ingest import LocalIngestService
 from echolens.collector.local_scanner import LocalSourceScanner
 from echolens.core.config import Settings, get_settings
 from echolens.operation_job_worker import OperationJobWorker
+from echolens.storage.maintenance import DatabaseMaintenance
+from echolens.storage.mysql import mysql_connection
 from echolens.transcription_worker import TranscriptionWorker
 from echolens.worker import AudioWorker
 
@@ -152,6 +154,60 @@ def transcribe(
     processed, completed, failed = _run_transcription_stage(settings, limit)
     typer.echo(
         f"Transcription result: processed={processed} completed={completed} failed={failed}"
+    )
+
+
+@app.command()
+def migrate() -> None:
+    """Apply idempotent MySQL schema upgrades required by this version."""
+
+    with mysql_connection() as connection:
+        changed = DatabaseMaintenance(connection).ensure_market_insights_column()
+    typer.echo(
+        "Database migration result: "
+        + ("added analyses.market_insights_json" if changed else "schema already current")
+    )
+
+
+@app.command()
+def reanalyze(
+    limit: int | None = typer.Option(
+        default=None,
+        min=1,
+        help="Maximum completed videos without market conclusions to queue.",
+    ),
+    apply: bool = typer.Option(
+        False,
+        "--apply",
+        help="Move matching videos back to the transcribed state.",
+    ),
+    run: bool = typer.Option(
+        False,
+        "--run",
+        help="Queue candidates and immediately run DeepSeek analysis.",
+    ),
+) -> None:
+    """Queue completed videos that do not yet have market conclusions."""
+
+    settings = get_settings()
+    with mysql_connection(settings) as connection:
+        maintenance = DatabaseMaintenance(connection)
+        maintenance.ensure_market_insights_column()
+        candidates = maintenance.count_reanalysis_candidates()
+        queued = maintenance.queue_reanalysis_candidates(limit=limit) if (apply or run) else 0
+
+    typer.echo(f"Reanalysis candidates: {candidates}")
+    if not apply and not run:
+        typer.echo("Dry run only. Use --apply to queue or --run to queue and process them.")
+        return
+    typer.echo(f"Queued for analysis: {queued}")
+    if not run or queued == 0:
+        return
+
+    _require_deepseek(settings)
+    processed, completed, failed = _run_analysis_stage(settings, queued)
+    typer.echo(
+        f"Reanalysis result: processed={processed} completed={completed} failed={failed}"
     )
 
 
